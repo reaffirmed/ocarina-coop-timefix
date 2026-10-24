@@ -1,0 +1,71 @@
+name: build-server
+on:
+  push:
+    paths:
+      - 'server/**'
+      - '.github/workflows/build-server.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - '.github/workflows/build-server.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-server-linux:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Git Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure
+      run: cmake -S server -B server/build -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build server/build --config Release -j
+
+    - name: Stage package
+      run: |
+        mkdir -p package
+        cp server/build/OOTServer package/
+        cp server/config.json package/
+
+    - name: Upload build
+      uses: actions/upload-artifact@v4
+      with:
+        name: ootserver-linux
+        path: package
+
+  build-server-windows:
+    runs-on: windows-latest
+    steps:
+    - name: Git Checkout
+      uses: actions/checkout@v4
+
+    - name: Install ninja
+      run: choco install ninja -y
+
+    - name: Configure Developer Command Prompt
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Configure
+      run: cmake -S server -B server/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build server/build
+
+    - name: Stage package
+      shell: bash
+      run: |
+        mkdir -p package
+        cp server/build/OOTServer.exe package/
+        cp server/config.json package/
+
+    - name: Upload build
+      uses: actions/upload-artifact@v4
+      with:
+        name: ootserver-windows
+        path: package

@@ -1,0 +1,137 @@
+#ifndef PACKETTYPESH
+#define PACKETTYPESH
+namespace ZeldaOnline {
+
+#define SCENE_FLAG_OPT_SET (1 << 0)         // set, else unset
+#define SCENE_FLAG_OPT_LOCKED_DOOR (1 << 1) // a locked doors flag
+
+    enum ClientPackets {
+        CLIENT_PACKET_AUTH = 0,
+        CLIENT_PACKET_UPDATE_PLAYER = 1,
+        CLIENT_PACKET_REQUEST_ACTOR_SPAWN = 2,
+        CLIENT_PACKET_REQUEST_ACTOR_SPAWN_AS_CHILD = 3,
+        CLIENT_PACKET_ACTOR_SPAWN_AS_CHILD = 4,
+        CLIENT_PACKET_SET_ROOM_SCENE = 5,
+        CLIENT_PACKET_ACTOR_DIED = 6,
+        CLIENT_PACKET_ACTOR_TRIGGER_TO_PUPPETS = 7,
+        CLIENT_PACKET_ACTOR_TRIGGER_TO_LEADER = 8,
+        CLIENT_PACKET_UPDATE_APPEARANCE = 9,
+        CLIENT_PACKET_CLAIM_ACTOR = 10,
+        CLIENT_PACKET_SCENE_FLAG = 11,
+        CLIENT_PACKET_SCENE_TRIGGER = 12,
+        CLIENT_PACKET_RELINQUISH_ACTOR_LEADER = 13,
+        CLIENT_PACKET_SETUP_ACTORS_DONE = 14,
+        CLIENT_PACKET_SET_PARTY = 15,
+        CLIENT_PACKET_RELEASE_ROOM = 16,
+        CLIENT_PACKET_ACTOR_PROPERTIES = 17,
+        CLIENT_PACKET_SET_ACTOR_LOCKED = 18,
+
+        CLIENT_PACKET_ACTOR_SPAWN = 19,
+        CLIENT_PACKET_ACTOR_SOUND = 20,
+        CLIENT_PACKET_OCARINA_SFX = 21,
+        CLIENT_PACKET_SET_PAUSE_STATE = 22,
+        CLIENT_PACKET_DECLINE_ACTOR_LEADER = 23,
+        CLIENT_PACKET_INIT_PLAYER_LIST = 24,
+        CLIENT_PACKET_PARTY_CREATE = 25,
+        CLIENT_PACKET_PARTY_LEAVE = 26,
+        CLIENT_PACKET_PARTY_INVITE = 27,
+        CLIENT_PACKET_PARTY_JOIN = 28,
+        CLIENT_PACKET_PARTY_DECLINE = 29,
+        CLIENT_PACKET_PARTY_ENABLE_SCENES = 30,
+        CLIENT_PACKET_TELEPORT_TO_PARTY_MEMBER = 31,
+        CLIENT_PACKET_KEEP_ALIVE = 32,
+        CLIENT_PACKET_ADD_STATIC_ACTOR = 33,
+        CLIENT_PACKET_CHEST_OPENED = 34,
+
+        CLIENT_PACKET_CHAT_MESSAGE = 35,
+        CLIENT_PACKET_UPDATE_PARTY_SETTINGS = 36,
+
+        CLIENT_PACKET_UPDATE_DUNGEON_KEYS = 37,
+
+        CLIENT_PACKET_STORY_PROGRESS = 38,
+        CLIENT_PACKET_STORY_TIME_VOTE = 39,
+        CLIENT_PACKET_STORY_SHARE_ITEM = 40,
+        // u1 counter id (STORY_COUNTER_*), u2 amount to add; the server adds it to the team save and answers everybody
+        CLIENT_PACKET_STORY_ADD_COUNTER = 41,
+        // a story cutscene started here: u1 kind (0 script, 1 scene cutscene transition), u2 entrance, u2 cutscene index,
+        // u2 path length + path (kind 0); relayed to the party members in the same scene
+        CLIENT_PACKET_STORY_CUTSCENE = 42,
+        // key NPC dialogue the speaker has open: u1 kind (0 text on screen, 1 closed), u2 text id; relayed to the
+        // party members in the same scene (the speaker repeats kind 0 about once a second while the box stays open)
+        CLIENT_PACKET_STORY_DIALOGUE = 43,
+        // u1 1 if vanilla time would pass in the sender's current scene (scene time increment not 0), else 0;
+        // the server clock only runs while at least one player reports 1
+        CLIENT_PACKET_SET_TIME_FLOWS = 44
+
+    };
+
+    enum ServerPackets {
+        SERVER_PACKET_ACTOR_SPAWN = 0,
+        SERVER_PACKET_ACTOR_SPAWN_AS_CHILD = 1,
+        SERVER_PACKET_DESTROY_ACTOR = 2,
+        SERVER_PACKET_AUTH_RESPONSE = 3,
+        SERVER_PACKET_ACTOR_TRIGGER = 4,
+        SERVER_PACKET_UPDATE_APPEARANCE = 5,
+        SERVER_PACKET_SET_ACTOR_LEADER = 6,
+        SERVER_PACKET_SCENE_FLAG = 7,
+        SERVER_PACKET_WORLD_TIME = 8,
+        SERVER_PACKET_SCENE_TRIGGER = 9,
+        SERVER_PACKET_ROOM_TEMP_FLAGS = 10,
+        SERVER_PACKET_ACTOR_PROPERTIES = 11,
+        SERVER_PACKET_SET_ACTOR_LOCKED = 12,
+
+        SERVER_PACKET_ASSIGN_ACTOR_ID = 13,
+        SERVER_PACKET_ACTOR_SOUND = 14,
+        SERVER_PACKET_OCARINA_SFX = 15,
+        SERVER_PACKET_DAMAGE_PLAYER = 16,
+        SERVER_PACKET_ROOM_LOADED = 17,
+        SERVER_PACKET_SCENE_FLAGS = 18,
+        SERVER_PACKET_INF_FLAGS_LIST = 19,
+        SERVER_PACKET_DISCONNECT = 20,
+
+        SERVER_PACKET_PLAYER_LIST_APPEND = 21,
+        SERVER_PACKET_PLAYER_LIST_REMOVE = 22,
+        SERVER_PACKET_PLAYER_LIST_UPDATE = 23,
+        SERVER_PACKET_PARTY_JOIN = 24,
+        SERVER_PACKET_PARTY_INVITE = 25,
+        SERVER_PACKET_PARTY_MEMBER_ADD = 26,
+        SERVER_PACKET_PARTY_MEMBER_REMOVE = 27,
+
+        SERVER_PACKET_TELEPORT_PLAYER = 28,
+        SERVER_PACKET_SET_PLAYERLIST_STATUS = 29,
+        SERVER_PACKET_ACTOR_STATIC_SPAWN = 30,
+        SERVER_PACKET_POPULATE_SKINS = 31,
+        SERVER_PACKET_CHEST_OPENED = 32,
+
+        SERVER_PACKET_CHAT_MESSAGE = 33,
+        SERVER_PACKET_UPDATE_PARTY_SETTINGS = 34,
+        SERVER_PACKET_UPDATE_DUNGEON_KEYS = 35,
+
+        SERVER_PACKET_STORY_STATE = 36,
+        SERVER_PACKET_STORY_VOTE_STATUS = 37,
+        SERVER_PACKET_STORY_TRAVEL = 38,
+        SERVER_PACKET_STORY_SET_ERA = 39,
+        SERVER_PACKET_STORY_SHARE_ITEM = 40,
+        // a permanent dungeon switch or clear flag was switched off again (u1 sceneNum, u4 switch mask, u4 clear mask)
+        SERVER_PACKET_STORY_DUNGEON_CLEAR = 41,
+        // u2 sender network id, then the CLIENT_PACKET_STORY_CUTSCENE fields
+        SERVER_PACKET_STORY_CUTSCENE = 42,
+        // u2 sender network id, then the CLIENT_PACKET_STORY_DIALOGUE fields
+        SERVER_PACKET_STORY_DIALOGUE = 43
+    };
+
+    static const int PLAYER_PUPPET_ROOM = -1;
+
+    static const char SCENE_SCOPED_ROOM = -1;
+
+    inline uint32_t MakeSceneKey(int sceneNum, int isFuture, int otherVariant) {
+        return ((uint32_t)(sceneNum & 0x7FFF)) | ((uint32_t)(isFuture & 0x1) << 15) |
+            ((uint32_t)(otherVariant & 0xFFFF) << 16);
+    }
+
+    inline uint64_t MakeServerSceneKey(uint32_t sceneKey, uint32_t partyHash) {
+        return (uint64_t)sceneKey | ((uint64_t)partyHash << 32);
+    }
+} // namespace ZeldaOnline
+
+#endif
