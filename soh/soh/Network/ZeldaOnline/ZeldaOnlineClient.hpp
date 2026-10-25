@@ -160,6 +160,8 @@ class ZeldaOnlineClient : public ZNetworking {
     bool m_storyCsWasActive = false;         // csCtx was running last frame
     bool m_storyCsTransitionSeen = false;    // the current transition was already looked at
     int m_storyCsRemoteFrames = 0;           // a cutscene was just started for a member; do not announce it again
+    bool m_storyCsInRemote = false;          // the running cutscene is one a member started; do not announce it
+    void* m_storyCsLastSegment = nullptr;    // csCtx.segment last frame, to see an actor switch scripts
     int m_storyCsSent = 0;
     int m_storyCsReceived = 0;
     int m_storyCsStarted = 0;

@@ -53,8 +53,9 @@ namespace ZeldaOnline {
         CLIENT_PACKET_STORY_SHARE_ITEM = 40,
         // u1 counter id (STORY_COUNTER_*), u2 amount to add; the server adds it to the team save and answers everybody
         CLIENT_PACKET_STORY_ADD_COUNTER = 41,
-        // a story cutscene started here: u1 kind (0 script, 1 scene cutscene transition), u2 entrance, u2 cutscene index,
-        // u2 path length + path (kind 0); relayed to the party members in the same scene
+        // a story cutscene started here: u1 kind (0 script, 1 scene cutscene transition, 2 script built into an actor),
+        // u2 entrance, u2 cutscene index, u2 length + path (kind 0) or name (kind 2); relayed to the party members in the
+        // same scene
         CLIENT_PACKET_STORY_CUTSCENE = 42,
         // key NPC dialogue the speaker has open: u1 kind (0 text on screen, 1 closed), u2 text id; relayed to the
         // party members in the same scene (the speaker repeats kind 0 about once a second while the box stays open)

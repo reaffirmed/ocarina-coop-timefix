@@ -1515,18 +1515,61 @@ void ZeldaOnlineClient::StoryMoveToEra() {
 //    current scene (area intros, Sheik, song lessons, Zelda, the Sages ...). It is sent by its path.
 //  - a scene cutscene: a transition loads a scene in one of its cutscene layers (nextCutsceneIndex 0xFFF0 and up:
 //    the Deku Tree dying after Gohma, the Chamber of Sages, Kakariko burning ...). It is sent as that transition.
+// A few story scripts are compiled into their actor instead of loaded by path (meeting the Great Deku Tree). They have
+// no path to send, so they are listed in STORY_EMBEDDED_CUTSCENES and sent by name. Their actor often moves on to the
+// next script of the sequence itself (the Deku Tree opening his mouth after the answer), so a switch to another listed
+// script during a cutscene is sent as well, and a member who is still watching the previous one plays it right after.
 // The server hands it to the party members in the same scene, who start the same thing unless they are already in a
 // cutscene or a transition (then they are watching it already: both triggered it at the same moment).
 // Story flags stay shared as before; only the area intro "seen" flags are per player (STORY_EVENTCHKINF_EXCLUDE).
 
 extern "C" int ResourceMgr_OTRSigCheck(char* imgData);
 
+// z_bg_treemouth_cutscene_data.c
+extern "C" CutsceneData D_808BCE20[];
+extern "C" CutsceneData D_808BD2A0[];
+extern "C" CutsceneData D_808BD520[];
+extern "C" CutsceneData D_808BD790[];
+
 namespace {
 
 const uint8_t STORY_CS_SCRIPT = 0;
 const uint8_t STORY_CS_TRANSITION = 1;
+const uint8_t STORY_CS_EMBEDDED = 2;
 const int STORY_CS_ECHO_FRAMES = 60;     // a cutscene started for a member is not announced back
 const int STORY_CS_PENDING_FRAMES = 100; // how long a received cutscene may wait for a text box to close
+const int STORY_CS_CHAIN_FRAMES = 3 * 60 * 20; // how long the next script of a sequence may wait for the previous one
+
+// story scripts compiled into an actor: sent by name, and only played where that actor is loaded (the same room),
+// since the script moves Link around the actor
+struct StoryEmbeddedCutscene {
+    const char* name;
+    CutsceneData* data;
+    int actorId;
+    int actorCategory;
+};
+const StoryEmbeddedCutscene STORY_EMBEDDED_CUTSCENES[] = {
+    { "BgTreemouth/Meeting", D_808BCE20, ACTOR_BG_TREEMOUTH, ACTORCAT_BG },   // first talk with the Great Deku Tree
+    { "BgTreemouth/AskAgain", D_808BD2A0, ACTOR_BG_TREEMOUTH, ACTORCAT_BG },  // talking to him again after a no
+    { "BgTreemouth/OpenMouth", D_808BD520, ACTOR_BG_TREEMOUTH, ACTORCAT_BG }, // answered yes: he opens his mouth
+    { "BgTreemouth/Explain", D_808BD790, ACTOR_BG_TREEMOUTH, ACTORCAT_BG },   // answered no: he explains again
+};
+
+const StoryEmbeddedCutscene* StoryFindEmbeddedCutscene(const void* data) {
+    for (const auto& cs : STORY_EMBEDDED_CUTSCENES) {
+        if (cs.data == data)
+            return &cs;
+    }
+    return nullptr;
+}
+
+const StoryEmbeddedCutscene* StoryFindEmbeddedCutscene(const std::string& name) {
+    for (const auto& cs : STORY_EMBEDDED_CUTSCENES) {
+        if (name == cs.name)
+            return &cs;
+    }
+    return nullptr;
+}
 
 // area intro flyovers: entrance and the per player flag that marks the intro as seen (sEntranceCutsceneTable)
 struct StoryIntroCutscene {
@@ -1578,9 +1621,15 @@ void ZeldaOnlineClient::StoryWatchCutscenes() {
     if (m_storyCsRemoteFrames > 0)
         m_storyCsRemoteFrames--;
 
+    // the cutscene a member started here is over (or never got going)
+    if (m_storyCsInRemote && !csActive && (m_storyCsWasActive || m_storyCsRemoteFrames == 0)) {
+        m_storyCsInRemote = false;
+        m_storyCsPendingWait = 0;
+    }
+
     // time travel runs through the pedestal vote, every member starts that sequence on its own
-    const bool canAnnounce =
-        m_storyCsRemoteFrames == 0 && !m_storyHold && m_storyApprovedFrames == 0 && m_storyMoveEra < 0 && m_partyID != 0;
+    const bool canAnnounce = m_storyCsRemoteFrames == 0 && !m_storyCsInRemote && !m_storyHold &&
+                             m_storyApprovedFrames == 0 && m_storyMoveEra < 0 && m_partyID != 0;
 
     // a transition into a scene cutscene layer
     if (!transitioning) {
@@ -1597,10 +1646,17 @@ void ZeldaOnlineClient::StoryWatchCutscenes() {
         }
     }
 
-    // a script cutscene starting in this scene
-    if (csActive && !m_storyCsWasActive && canAnnounce && gSaveContext.cutsceneIndex >= 0xFFF0) {
-        char* segment = (char*)play->csCtx.segment;
-        if (segment != nullptr && ResourceMgr_OTRSigCheck(segment)) {
+    // a script cutscene starting in this scene, or an actor moving its cutscene on to the next listed script
+    char* segment = csActive ? (char*)play->csCtx.segment : nullptr;
+    const StoryEmbeddedCutscene* embedded = segment != nullptr ? StoryFindEmbeddedCutscene(segment) : nullptr;
+    const bool started = csActive && (!m_storyCsWasActive || (embedded != nullptr && segment != m_storyCsLastSegment));
+    if (started && canAnnounce && gSaveContext.cutsceneIndex >= 0xFFF0) {
+        if (embedded != nullptr) {
+            WritePacket(newPacket(CLIENT_PACKET_STORY_CUTSCENE)
+                        << PackedUInt1(STORY_CS_EMBEDDED) << PackedUInt2((unsigned int)(u16)gSaveContext.entranceIndex)
+                        << PackedUInt2((unsigned int)gSaveContext.cutsceneIndex) << std::string(embedded->name));
+            m_storyCsSent++;
+        } else if (segment != nullptr && ResourceMgr_OTRSigCheck(segment)) {
             std::string path(segment);
             if (!StoryCutsceneIsPersonal(path) && path.size() < 1024) {
                 WritePacket(newPacket(CLIENT_PACKET_STORY_CUTSCENE)
@@ -1612,6 +1668,7 @@ void ZeldaOnlineClient::StoryWatchCutscenes() {
         }
     }
     m_storyCsWasActive = csActive;
+    m_storyCsLastSegment = segment;
 
     StoryStartRemoteCutscene();
 }
@@ -1622,6 +1679,13 @@ void ZeldaOnlineClient::StoryStartRemoteCutscene() {
 
     PlayState* play = gPlayState;
     Player* player = GET_PLAYER(play);
+
+    // still watching the previous cutscene a member started: the next part of the sequence plays right after it
+    if (m_storyCsInRemote && m_storyCsPendingKind == STORY_CS_EMBEDDED) {
+        if (++m_storyCsPendingWait >= STORY_CS_CHAIN_FRAMES)
+            m_storyCsHasPending = false;
+        return;
+    }
 
     // already in a cutscene or on the way out: watching it already (or something of its own)
     if (play->transitionTrigger == TRANS_TRIGGER_START || play->csCtx.state != CS_STATE_IDLE || m_storyHold ||
@@ -1638,11 +1702,25 @@ void ZeldaOnlineClient::StoryStartRemoteCutscene() {
         return;
     }
 
+    const StoryEmbeddedCutscene* embedded = nullptr;
+    if (m_storyCsPendingKind == STORY_CS_EMBEDDED) {
+        // only where its actor is loaded; elsewhere in the scene the shared flags do the rest
+        embedded = StoryFindEmbeddedCutscene(m_storyCsPendingPath);
+        if (embedded == nullptr || Actor_Find(&play->actorCtx, embedded->actorId, embedded->actorCategory) == nullptr) {
+            m_storyCsHasPending = false;
+            return;
+        }
+    }
+
     m_storyCsHasPending = false;
     m_storyCsRemoteFrames = STORY_CS_ECHO_FRAMES;
+    m_storyCsInRemote = true;
     m_storyCsStarted++;
 
-    if (m_storyCsPendingKind == STORY_CS_TRANSITION) {
+    if (embedded != nullptr) {
+        play->csCtx.segment = (void*)embedded->data;
+        gSaveContext.cutsceneTrigger = 1;
+    } else if (m_storyCsPendingKind == STORY_CS_TRANSITION) {
         m_storyCsTransitionSeen = true;
         play->nextEntranceIndex = m_storyCsPendingEntrance;
         gSaveContext.nextCutsceneIndex = m_storyCsPendingIndex;
@@ -1673,7 +1751,7 @@ void ZeldaOnlineClient::OnStoryCutscene(ByteStream& packet) {
     uint8_t kind = (uint8_t)packet.Read<PackedUInt1>().value();
     uint16_t entrance = (uint16_t)packet.Read<PackedUInt2>().value();
     uint16_t index = (uint16_t)packet.Read<PackedUInt2>().value();
-    std::string path = kind == STORY_CS_SCRIPT ? packet.ReadString(packet.BytesLeft()) : std::string();
+    std::string path = kind != STORY_CS_TRANSITION ? packet.ReadString(packet.BytesLeft()) : std::string();
 
     if (!StoryCoopActive() || gPlayState == nullptr)
         return;
@@ -1681,7 +1759,9 @@ void ZeldaOnlineClient::OnStoryCutscene(ByteStream& packet) {
         return;
     if (kind == STORY_CS_TRANSITION && index < 0xFFF0)
         return;
-    if (kind > STORY_CS_TRANSITION)
+    if (kind == STORY_CS_EMBEDDED && StoryFindEmbeddedCutscene(path) == nullptr)
+        return;
+    if (kind > STORY_CS_EMBEDDED)
         return;
 
     m_storyCsReceived++;
