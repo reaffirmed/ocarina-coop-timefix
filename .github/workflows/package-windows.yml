@@ -11,6 +11,10 @@ on:
         description: generate-builds run id to take soh-windows from
         required: true
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   package-windows:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
