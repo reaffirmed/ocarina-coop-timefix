@@ -224,6 +224,8 @@ class ZeldaOnlineClient : public ZNetworking {
     void OnStoryDungeonClear(ByteStream& packet);
     StoryProgress StoryCapture();
     bool StoryApply(const StoryProgress& team);
+    void StoryRefreshFlagActors(PlayState* play, const StoryProgress& before);
+    void StoryOnMidoBlockPath(Actor* mido, bool* should);
     bool StoryCanApply();
     void StorySendProgress(const StoryProgress& progress, bool seed);
     void StoryUpdate();

@@ -329,6 +329,40 @@ int StoryPopCount(u32 v) {
     return n;
 }
 
+// NPCs and gates that read a story flag only in their init: when the flag arrives from the party while the scene is
+// loaded they keep the old state (Mido still blocks the path, King Zora still sits in front of the passage) until the
+// next scene load. They are respawned so their init picks up the flag, like a scene reload would.
+struct StoryFlagActor {
+    int16_t actorId;
+    int16_t sceneNum;
+    bool infTable; // an infTable flag instead of an eventChkInf flag
+    int flag;
+};
+
+const StoryFlagActor sStoryFlagActors[] = {
+    { ACTOR_EN_MD, SCENE_LOST_WOODS, false, EVENTCHKINF_PLAYED_SARIAS_SONG_FOR_MIDO_AS_ADULT },
+    { ACTOR_EN_KZ, SCENE_ZORAS_DOMAIN, false, EVENTCHKINF_KING_ZORA_MOVED },
+    { ACTOR_BG_GATE_SHUTTER, SCENE_KAKARIKO_VILLAGE, true, INFTABLE_SHOWED_ZELDAS_LETTER_TO_GATE_GUARD },
+};
+
+bool StoryFlagWasSet(const uint16_t* rows, int flag) {
+    return (rows[flag >> 4] & (1u << (flag & 15))) != 0;
+}
+
+void StoryRespawnActor(PlayState* play, Actor* actor) {
+    s16 id = actor->id;
+    s16 params = actor->params;
+    s8 room = actor->room;
+    Vec3f pos = actor->home.pos;
+    Vec3s rot = actor->home.rot;
+
+    // children such as Mido's fairy follow their parent and remove themselves with it
+    Actor_Kill(actor);
+    Actor* fresh = Actor_Spawn(&play->actorCtx, play, id, pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, params);
+    if (fresh != nullptr)
+        fresh->room = room;
+}
+
 } // namespace
 
 bool ZeldaOnlineClient::StoryCoopActive() const {
@@ -1023,7 +1057,54 @@ bool ZeldaOnlineClient::StoryApply(const StoryProgress& team) {
 
     m_skipItemGive = previousSkip;
 
+    StoryRefreshFlagActors(play, before);
+
     return StoryCapture() != before;
+}
+
+void ZeldaOnlineClient::StoryRefreshFlagActors(PlayState* play, const StoryProgress& before) {
+    for (const StoryFlagActor& entry : sStoryFlagActors) {
+        if (play->sceneNum != entry.sceneNum)
+            continue;
+
+        bool wasSet = entry.infTable ? StoryFlagWasSet(before.infTable, entry.flag)
+                                     : StoryFlagWasSet(before.eventChkInf, entry.flag);
+        bool isSet = entry.infTable ? Flags_GetInfTable(entry.flag) : Flags_GetEventChkInf(entry.flag);
+        if (wasSet || !isSet)
+            continue;
+
+        std::vector<Actor*> found;
+        for (int cat = 0; cat < ACTORCAT_MAX; cat++) {
+            for (Actor* actor = play->actorCtx.actorLists[cat].head; actor != nullptr; actor = actor->next) {
+                if (actor->id == entry.actorId && actor->update != nullptr)
+                    found.push_back(actor);
+            }
+        }
+        for (Actor* actor : found)
+            StoryRespawnActor(play, actor);
+    }
+}
+
+// Mido in Kokiri Forest: when another member showed him the sword and shield while this player is in the forest, the
+// flag arrives but Mido keeps blocking the path, because only the talk itself sends him away. Called from his block
+// path action (VB_MOVE_MIDO_IN_KOKIRI_FOREST): he walks aside like he did for the member who talked to him, or leaves
+// when the game would no longer spawn him in the forest (another member got past him after the Deku Tree).
+void ZeldaOnlineClient::StoryOnMidoBlockPath(Actor* mido, bool* should) {
+    PlayState* play = gPlayState;
+    if (!StoryCoopActive() || play == nullptr || mido == nullptr || *should)
+        return;
+    if (play->sceneNum != SCENE_KOKIRI_FOREST || play->msgCtx.msgMode != MSGMODE_NONE)
+        return;
+
+    if (Flags_GetEventChkInf(EVENTCHKINF_SPOKE_TO_MIDO_AFTER_DEKU_TREES_DEATH) ||
+        Flags_GetEventChkInf(EVENTCHKINF_OBTAINED_ZELDAS_LETTER)) {
+        Actor_Kill(mido);
+        return;
+    }
+
+    bool treeDead = GameInteractor_Should(VB_MIDO_CONSIDER_DEKU_TREE_DEAD, CHECK_QUEST_ITEM(QUEST_KOKIRI_EMERALD));
+    if (!treeDead && Flags_GetEventChkInf(EVENTCHKINF_SHOWED_MIDO_SWORD_SHIELD))
+        *should = true;
 }
 
 void ZeldaOnlineClient::StorySendProgress(const StoryProgress& progress, bool seed) {

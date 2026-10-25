@@ -2193,14 +2193,17 @@ void ZeldaOnlineClient::RegisterHooks(bool enabled) {
         }
     }
 
-    // Story Co-op time travel: both handlers do nothing unless the party has Story Co-op on
+    // Story Co-op time travel and Mido: the handlers do nothing unless the party has Story Co-op on
     {
         static HOOK_ID pedestalHookId = 0;
         static HOOK_ID switchAgeHookId = 0;
+        static HOOK_ID midoHookId = 0;
         GameInteractor::Instance->UnregisterGameHookForID<GameInteractor::OnVanillaBehavior>(pedestalHookId);
         GameInteractor::Instance->UnregisterGameHookForID<GameInteractor::OnVanillaBehavior>(switchAgeHookId);
+        GameInteractor::Instance->UnregisterGameHookForID<GameInteractor::OnVanillaBehavior>(midoHookId);
         pedestalHookId = 0;
         switchAgeHookId = 0;
+        midoHookId = 0;
 
         if (enabled) {
             pedestalHookId = GameInteractor::Instance->RegisterGameHookForID<GameInteractor::OnVanillaBehavior>(
@@ -2213,6 +2216,14 @@ void ZeldaOnlineClient::RegisterHooks(bool enabled) {
                 });
             switchAgeHookId = GameInteractor::Instance->RegisterGameHookForID<GameInteractor::OnVanillaBehavior>(
                 VB_SWITCH_AGE, [this](GIVanillaBehavior, bool* should, va_list) { StoryOnSwitchAge(should); });
+            midoHookId = GameInteractor::Instance->RegisterGameHookForID<GameInteractor::OnVanillaBehavior>(
+                VB_MOVE_MIDO_IN_KOKIRI_FOREST, [this](GIVanillaBehavior, bool* should, va_list originalArgs) {
+                    va_list args;
+                    va_copy(args, originalArgs);
+                    Actor* mido = va_arg(args, Actor*);
+                    va_end(args);
+                    StoryOnMidoBlockPath(mido, should);
+                });
         }
     }
 
