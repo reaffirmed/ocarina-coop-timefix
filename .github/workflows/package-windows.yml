@@ -1,0 +1,63 @@
+name: package-windows
+# Builds the complete Windows player folder (game, server, Steam helper and shortcuts) from the soh-windows
+# artifact of a generate-builds run, so it can be unzipped and played without an official release.
+on:
+  workflow_run:
+    workflows: [generate-builds]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: generate-builds run id to take soh-windows from
+        required: true
+
+jobs:
+  package-windows:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: windows-latest
+    steps:
+    - name: Git Checkout
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+    - name: Download soh-windows
+      uses: actions/download-artifact@v4
+      with:
+        name: soh-windows
+        path: soh-windows
+        run-id: ${{ github.event.inputs.run_id || github.event.workflow_run.id }}
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Install ninja
+      run: choco install ninja -y
+    - name: Configure Developer Command Prompt
+      uses: ilammy/msvc-dev-cmd@v1
+    - name: Build server
+      run: |
+        cmake -S server -B server/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        cmake --build server/build
+    - name: Build Steam helper
+      run: |
+        New-Item -ItemType Directory -Force tools/steamlink/out | Out-Null
+        cl /nologo /D_CRT_SECURE_NO_WARNINGS /O2 /W3 /Fe:tools/steamlink/out/OOTSteamLink.exe tools/steamlink/ootsteamlink.c ws2_32.lib user32.lib
+    - name: Get steam_api64.dll
+      shell: bash
+      run: |
+        curl -sSLo steamworks.zip https://github.com/rlabrecque/Steamworks.NET/releases/download/2025.164.1/Steamworks.NET-Standalone_2025.164.1.zip
+        unzip -j steamworks.zip Windows-x64/steam_api64.dll -d steamworks
+        echo "eb17909a76668cf9ae0b92a618a34a50f6c73d3a6787cb4dd8ce36a8b10bfb75  steamworks/steam_api64.dll" | sha256sum -c -
+    - name: Assemble folder
+      shell: bash
+      run: |
+        DIR=OcarinaStoryCoop-windows
+        mkdir -p "$DIR/server"
+        cp -r soh-windows/. "$DIR/"
+        cp server/build/OOTServer.exe server/config.json "$DIR/server/"
+        cp tools/steamlink/out/OOTSteamLink.exe steamworks/steam_api64.dll "$DIR/"
+        printf 480 > "$DIR/steam_appid.txt"
+        cp "tools/steamlink/Host over Steam.bat" "tools/steamlink/Join over Steam.bat" "$DIR/"
+        ls -R "$DIR" | head -50
+    - name: Upload package
+      uses: actions/upload-artifact@v4
+      with:
+        name: ocarina-story-coop-windows
+        path: OcarinaStoryCoop-windows
