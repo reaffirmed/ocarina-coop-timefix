@@ -59,7 +59,7 @@ jobs:
         cp tools/steamlink/out/OOTSteamLink.exe steamworks/steam_api64.dll "$DIR/"
         printf 480 > "$DIR/steam_appid.txt"
         cp "tools/steamlink/Host over Steam.bat" "tools/steamlink/Join over Steam.bat" "$DIR/"
-        ls -R "$DIR" | head -50
+        ls "$DIR" "$DIR/server"
     - name: Upload package
       uses: actions/upload-artifact@v4
       with:
