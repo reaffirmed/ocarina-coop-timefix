@@ -1,0 +1,784 @@
+{
+  "name": "voice",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 21650
+  },
+  "boot": {
+    "entrance": 187,
+    "age": "child"
+  },
+  "cvars": {
+    "gZeldaOnline.Voice.Enabled": 1,
+    "gZeldaOnline.Voice.Range": 1500,
+    "gZeldaOnline.Voice.Volume": 100
+  },
+  "roles": {
+    "A": {
+      "name": "TestA",
+      "cvars": {
+        "gZeldaOnline.Voice.Mic": 0
+      },
+      "steps": [
+        {
+          "op": "wait_play",
+          "timeout_frames": 1800
+        },
+        {
+          "op": "set_time",
+          "day_time": 32768,
+          "night_flag": 0
+        },
+        {
+          "op": "connect"
+        },
+        {
+          "op": "wait_until",
+          "cond": "connected",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "wait_until",
+          "cond": "net_id",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "warp",
+          "entrance": 205,
+          "scene": 81,
+          "timeout_frames": 1800
+        },
+        {
+          "op": "wait_until",
+          "cond": "other_players",
+          "n": 1,
+          "timeout_frames": 3600
+        },
+        {
+          "op": "create_party",
+          "story_coop": true,
+          "story_code": "voice-test"
+        },
+        {
+          "op": "wait_until",
+          "cond": "has_party",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "wait_until",
+          "cond": "story_active",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "invite"
+        },
+        {
+          "op": "wait_until",
+          "cond": "party_size",
+          "n": 2,
+          "timeout_frames": 3600
+        },
+        {
+          "op": "wait_until",
+          "cond": "peers_in_scene",
+          "n": 1,
+          "timeout_frames": 3600
+        },
+        {
+          "op": "wait_until",
+          "cond": "peer_puppets",
+          "n": 1,
+          "timeout_frames": 1800
+        },
+        {
+          "op": "wait_until",
+          "cond": "flag",
+          "type": "inf_table",
+          "flag": 440,
+          "value": true,
+          "timeout_frames": 2400
+        },
+        {
+          "op": "wait_frames",
+          "n": 30
+        },
+        {
+          "op": "observe",
+          "name": "near"
+        },
+        {
+          "op": "set_flag",
+          "type": "inf_table",
+          "flag": 441
+        },
+        {
+          "op": "wait_until",
+          "cond": "flag",
+          "type": "inf_table",
+          "flag": 442,
+          "value": true,
+          "timeout_frames": 2400
+        },
+        {
+          "op": "wait_frames",
+          "n": 30
+        },
+        {
+          "op": "observe",
+          "name": "east"
+        },
+        {
+          "op": "set_flag",
+          "type": "inf_table",
+          "flag": 443
+        },
+        {
+          "op": "wait_until",
+          "cond": "flag",
+          "type": "inf_table",
+          "flag": 444,
+          "value": true,
+          "timeout_frames": 2400
+        },
+        {
+          "op": "wait_frames",
+          "n": 30
+        },
+        {
+          "op": "observe",
+          "name": "west"
+        },
+        {
+          "op": "set_flag",
+          "type": "inf_table",
+          "flag": 445
+        },
+        {
+          "op": "wait_until",
+          "cond": "flag",
+          "type": "inf_table",
+          "flag": 446,
+          "value": true,
+          "timeout_frames": 2400
+        },
+        {
+          "op": "wait_frames",
+          "n": 30
+        },
+        {
+          "op": "observe",
+          "name": "south"
+        },
+        {
+          "op": "set_flag",
+          "type": "inf_table",
+          "flag": 447
+        },
+        {
+          "op": "wait_until",
+          "cond": "flag",
+          "type": "inf_table",
+          "flag": 448,
+          "value": true,
+          "timeout_frames": 2400
+        },
+        {
+          "op": "wait_frames",
+          "n": 30
+        },
+        {
+          "op": "observe",
+          "name": "north"
+        },
+        {
+          "op": "set_cvar",
+          "name": "gZeldaOnline.Voice.Range",
+          "int": 400
+        },
+        {
+          "op": "wait_frames",
+          "n": 30
+        },
+        {
+          "op": "observe",
+          "name": "out_of_range"
+        },
+        {
+          "op": "set_cvar",
+          "name": "gZeldaOnline.Voice.Range",
+          "int": 1500
+        },
+        {
+          "op": "set_cvar",
+          "name": "gZeldaOnline.Voice.Muted",
+          "string": "TestB\n"
+        },
+        {
+          "op": "wait_frames",
+          "n": 30
+        },
+        {
+          "op": "observe",
+          "name": "muted"
+        },
+        {
+          "op": "set_cvar",
+          "name": "gZeldaOnline.Voice.Muted",
+          "string": ""
+        },
+        {
+          "op": "wait_frames",
+          "n": 30
+        },
+        {
+          "op": "observe",
+          "name": "unmuted"
+        },
+        {
+          "op": "set_flag",
+          "type": "inf_table",
+          "flag": 449
+        },
+        {
+          "op": "wait_until",
+          "cond": "flag",
+          "type": "inf_table",
+          "flag": 450,
+          "value": true,
+          "timeout_frames": 2400
+        },
+        {
+          "op": "wait_frames",
+          "n": 40
+        },
+        {
+          "op": "observe",
+          "name": "stopped"
+        },
+        {
+          "op": "wait_frames",
+          "n": 60
+        },
+        {
+          "op": "quit",
+          "pass": true
+        }
+      ]
+    },
+    "B": {
+      "name": "TestB",
+      "cvars": {
+        "gZeldaOnline.Voice.TestTone": 440
+      },
+      "steps": [
+        {
+          "op": "wait_play",
+          "timeout_frames": 1800
+        },
+        {
+          "op": "set_time",
+          "day_time": 32768,
+          "night_flag": 0
+        },
+        {
+          "op": "connect"
+        },
+        {
+          "op": "wait_until",
+          "cond": "connected",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "wait_until",
+          "cond": "net_id",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "warp",
+          "entrance": 205,
+          "scene": 81,
+          "timeout_frames": 1800
+        },
+        {
+          "op": "wait_until",
+          "cond": "invite_pending",
+          "timeout_frames": 7200
+        },
+        {
+          "op": "accept_invite"
+        },
+        {
+          "op": "wait_until",
+          "cond": "has_party",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "wait_until",
+          "cond": "story_active",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "wait_until",
+          "cond": "party_size",
+          "n": 2,
+          "timeout_frames": 3600
+        },
+        {
+          "op": "wait_until",
+          "cond": "peers_in_scene",
+          "n": 1,
+          "timeout_frames": 3600
+        },
+        {
+          "op": "wait_until",
+          "cond": "peer_puppets",
+          "n": 1,
+          "timeout_frames": 1800
+        },
+        {
+          "op": "move_link",
+          "mark": true
+        },
+        {
+          "op": "move_link",
+          "from_mark": true,
+          "dx": 80
+        },
+        {
+          "op": "wait_frames",
+          "n": 20
+        },
+        {
+          "op": "observe",
+          "name": "b_near"
+        },
+        {
+          "op": "set_flag",
+          "type": "inf_table",
+          "flag": 440
+        },
+        {
+          "op": "wait_until",
+          "cond": "flag",
+          "type": "inf_table",
+          "flag": 441,
+          "value": true,
+          "timeout_frames": 2400
+        },
+        {
+          "op": "move_link",
+          "from_mark": true,
+          "dx": 700
+        },
+        {
+          "op": "wait_frames",
+          "n": 20
+        },
+        {
+          "op": "observe",
+          "name": "b_east"
+        },
+        {
+          "op": "set_flag",
+          "type": "inf_table",
+          "flag": 442
+        },
+        {
+          "op": "wait_until",
+          "cond": "flag",
+          "type": "inf_table",
+          "flag": 443,
+          "value": true,
+          "timeout_frames": 2400
+        },
+        {
+          "op": "move_link",
+          "from_mark": true,
+          "dx": -700
+        },
+        {
+          "op": "wait_frames",
+          "n": 20
+        },
+        {
+          "op": "observe",
+          "name": "b_west"
+        },
+        {
+          "op": "set_flag",
+          "type": "inf_table",
+          "flag": 444
+        },
+        {
+          "op": "wait_until",
+          "cond": "flag",
+          "type": "inf_table",
+          "flag": 445,
+          "value": true,
+          "timeout_frames": 2400
+        },
+        {
+          "op": "move_link",
+          "from_mark": true,
+          "dz": -700
+        },
+        {
+          "op": "wait_frames",
+          "n": 20
+        },
+        {
+          "op": "observe",
+          "name": "b_south"
+        },
+        {
+          "op": "set_flag",
+          "type": "inf_table",
+          "flag": 446
+        },
+        {
+          "op": "wait_until",
+          "cond": "flag",
+          "type": "inf_table",
+          "flag": 447,
+          "value": true,
+          "timeout_frames": 2400
+        },
+        {
+          "op": "move_link",
+          "from_mark": true,
+          "dz": 700
+        },
+        {
+          "op": "wait_frames",
+          "n": 20
+        },
+        {
+          "op": "observe",
+          "name": "b_north"
+        },
+        {
+          "op": "set_flag",
+          "type": "inf_table",
+          "flag": 448
+        },
+        {
+          "op": "wait_until",
+          "cond": "flag",
+          "type": "inf_table",
+          "flag": 449,
+          "value": true,
+          "timeout_frames": 2400
+        },
+        {
+          "op": "set_cvar",
+          "name": "gZeldaOnline.Voice.TestTone",
+          "int": 0
+        },
+        {
+          "op": "set_cvar",
+          "name": "gZeldaOnline.Voice.Mic",
+          "int": 0
+        },
+        {
+          "op": "wait_frames",
+          "n": 10
+        },
+        {
+          "op": "set_flag",
+          "type": "inf_table",
+          "flag": 450
+        },
+        {
+          "op": "observe",
+          "name": "stopped_b"
+        },
+        {
+          "op": "wait_frames",
+          "n": 200
+        },
+        {
+          "op": "quit",
+          "pass": true
+        }
+      ]
+    }
+  },
+  "assertions": [
+    {
+      "type": "each",
+      "roles": [
+        "B"
+      ],
+      "obs": "stopped_b",
+      "path": "voice.frames_sent",
+      "op": "ge",
+      "value": 400,
+      "label": "B sent its voice the whole time (20 ms frames)"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "near",
+      "path": "voice.frames_sent",
+      "op": "eq",
+      "value": 0,
+      "label": "A, with its microphone off, sent nothing"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "near",
+      "path": "voice.output_open",
+      "op": "eq",
+      "value": true,
+      "label": "A opened its voice output"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "near",
+      "path": "voice.speakers.0.name",
+      "op": "eq",
+      "value": "TestB",
+      "label": "A hears TestB"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "near",
+      "path": "voice.speakers.0.frames_played",
+      "op": "ge",
+      "value": 100,
+      "label": "A played B's voice"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "near",
+      "path": "voice.speakers.0.distance",
+      "op": "le",
+      "value": 250,
+      "label": "B stands right next to A"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "near",
+      "path": "voice.speakers.0.gain",
+      "op": "ge",
+      "value": 0.99,
+      "label": "right next to A: full volume"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "near",
+      "path": "voice.speakers.0.out_db",
+      "op": "ge",
+      "value": -19.0,
+      "label": "right next to A: the tone comes out loud (sent at -15 dBFS)"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "near",
+      "path": "voice.speakers.0.speaking_tag",
+      "op": "eq",
+      "value": true,
+      "label": "the talking tag shows over B"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "east",
+      "path": "voice.speakers.0.distance",
+      "op": "ge",
+      "value": 500,
+      "label": "B moved about 700 away"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "east",
+      "path": "voice.speakers.0.gain",
+      "op": "le",
+      "value": 0.6,
+      "label": "700 away: quieter"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "east",
+      "path": "voice.speakers.0.gain",
+      "op": "ge",
+      "value": 0.1,
+      "label": "700 away: still audible"
+    },
+    {
+      "type": "rel",
+      "label": "700 away is quieter in the speakers than next to A",
+      "a": {
+        "role": "A",
+        "obs": "near",
+        "path": "voice.speakers.0.out_db"
+      },
+      "b": {
+        "role": "A",
+        "obs": "east",
+        "path": "voice.speakers.0.out_db"
+      },
+      "op": "lt"
+    },
+    {
+      "type": "rel",
+      "label": "B on one side (east): that ear is louder",
+      "a": {
+        "role": "A",
+        "obs": "east",
+        "path": "voice.speakers.0.right"
+      },
+      "b": {
+        "role": "A",
+        "obs": "east",
+        "path": "voice.speakers.0.left"
+      },
+      "op": "gt"
+    },
+    {
+      "type": "rel",
+      "label": "B on the other side (west): the other ear is louder",
+      "a": {
+        "role": "A",
+        "obs": "west",
+        "path": "voice.speakers.0.left"
+      },
+      "b": {
+        "role": "A",
+        "obs": "west",
+        "path": "voice.speakers.0.right"
+      },
+      "op": "gt"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "north",
+      "path": "voice.speakers.0.distance",
+      "op": "ge",
+      "value": 420,
+      "label": "B moved well away again (past the 400 range used next)"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "out_of_range",
+      "path": "voice.speakers.0.gain",
+      "op": "eq",
+      "value": 0,
+      "label": "beyond the hearing range: silent"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "out_of_range",
+      "path": "voice.speakers.0.out_db",
+      "op": "le",
+      "value": -60,
+      "label": "beyond the hearing range: nothing in the speakers"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "out_of_range",
+      "path": "voice.speakers.0.speaking_tag",
+      "op": "eq",
+      "value": false,
+      "label": "no talking tag when you can't hear them"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "muted",
+      "path": "voice.speakers.0.muted",
+      "op": "eq",
+      "value": true,
+      "label": "muting by name works"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "muted",
+      "path": "voice.speakers.0.gain",
+      "op": "eq",
+      "value": 0,
+      "label": "muted: silent"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "unmuted",
+      "path": "voice.speakers.0.gain",
+      "op": "ge",
+      "value": 0.1,
+      "label": "unmuted: audible again"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "stopped",
+      "path": "voice.speakers.0.speaking_tag",
+      "op": "eq",
+      "value": false,
+      "label": "B stopped talking: the tag goes away"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "stopped",
+      "path": "voice.speakers.0.underruns",
+      "op": "le",
+      "value": 3,
+      "label": "few playback gaps while B talked"
+    }
+  ]
+}

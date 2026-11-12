@@ -323,6 +323,8 @@ struct State {
     int padStickX = 0;
     int padStickY = 0;
     double padStartPos[3] = { 0, 0, 0 };
+    float markPos[3] = { 0, 0, 0 }; // move_link mark
+    bool hasMark = false;
 };
 
 State sState;
@@ -518,8 +520,12 @@ json Observe(const json& step) {
         peers.push_back(pj);
     }
     o["peers"] = peers;
+    o["voice"] = ZeldaOnline::VoiceChat::Instance().TestStats();
     if (gPlayState != nullptr && GameInteractor::IsSaveLoaded(true)) {
         Player* p = GET_PLAYER(gPlayState);
+        o["pos"] = { p->actor.world.pos.x, p->actor.world.pos.y, p->actor.world.pos.z };
+        o["camera_dir"] = { gPlayState->view.lookAt.x - gPlayState->view.eye.x,
+                            gPlayState->view.lookAt.z - gPlayState->view.eye.z };
         o["scene"] = gPlayState->sceneNum;
         o["room"] = gPlayState->roomCtx.curRoom.num;
         o["entrance"] = gSaveContext.entranceIndex;
@@ -1403,6 +1409,37 @@ bool RunStep(const json& step) {
         p->actor.prevPos = p->actor.world.pos;
         s16 yaw = Math_Vec3f_Yaw(&p->actor.world.pos, &best->world.pos);
         p->actor.shape.rot.y = p->actor.world.rot.y = p->yaw = yaw;
+        return true;
+    }
+    if (op == "set_cvar") {
+        // `name`, and `int` or `string`: changes a setting the way its menu would
+        if (step.contains("string"))
+            CVarSetString(step.value("name", "").c_str(), step.value("string", "").c_str());
+        else
+            CVarSetInteger(step.value("name", "").c_str(), step.value("int", 0));
+        return true;
+    }
+    if (op == "move_link") {
+        // puts Link `dx`, `dz` (game units) from where `from` was recorded with `mark`, or from where he stands now
+        if (!PlayReady()) return timedOut("move_link: not ready");
+        Player* pl = GET_PLAYER(gPlayState);
+        if (step.value("mark", false)) {
+            sState.markPos[0] = pl->actor.world.pos.x;
+            sState.markPos[1] = pl->actor.world.pos.y;
+            sState.markPos[2] = pl->actor.world.pos.z;
+            sState.hasMark = true;
+        }
+        float bx = pl->actor.world.pos.x, by = pl->actor.world.pos.y, bz = pl->actor.world.pos.z;
+        if (step.value("from_mark", false) && sState.hasMark) {
+            bx = sState.markPos[0];
+            by = sState.markPos[1];
+            bz = sState.markPos[2];
+        }
+        pl->actor.world.pos.x = bx + step.value("dx", 0.0f);
+        pl->actor.world.pos.y = by + step.value("dy", 0.0f);
+        pl->actor.world.pos.z = bz + step.value("dz", 0.0f);
+        pl->actor.prevPos = pl->actor.world.pos;
+        pl->actor.velocity.x = pl->actor.velocity.y = pl->actor.velocity.z = 0.0f;
         return true;
     }
     if (op == "log") {

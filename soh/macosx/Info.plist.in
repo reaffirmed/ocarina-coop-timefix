@@ -31,6 +31,8 @@
     <string>Copyright 2022 HarbourMasters.</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.games</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Proximity voice chat uses your microphone so the players near you in online co-op can hear you.</string>
     <key>LSMinimumSystemVersion</key>
     <string>10.15</string>
     <key>LSEnvironment</key>
