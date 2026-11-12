@@ -13,7 +13,7 @@ Network > Zelda Online > Co-op Lobby). It needs `OOTSteamLink` and `OOTServer` f
 Steam running (Windows and Linux).
 
 - **Host a game** lists your playthroughs, newest first, with the date you last played, the save file you used and who
-  played with you. **Continue this playthrough** (or a double click) starts the server and a friends-only Steam lobby
+  played with you. **Continue** (or a double click on a playthrough) starts the server and a friends-only Steam lobby
   in the background, connects you, and creates a Story Co-op party with that playthrough's team code, so the server
   loads its team save. **Start new** makes a new playthrough with a fresh team code. Right-click a playthrough to rename
   it, copy its team code or remove it from the list (the team save itself stays on the server).

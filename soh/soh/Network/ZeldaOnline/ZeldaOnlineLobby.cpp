@@ -330,7 +330,7 @@ void CoopLobbyWindow::Draw() {
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14.0f, 12.0f));
-    const ImVec2 size = ImVec2(420.0f, 0.0f);
+    const ImVec2 size = ImVec2(ImGui::GetFontSize() * 30.0f, 0.0f); // follows the menu's font scale
     auto vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(ImVec2(vp->Pos.x + vp->Size.x * 0.5f, vp->Pos.y + vp->Size.y * 0.5f), ImGuiCond_Appearing,
                             ImVec2(0.5f, 0.5f));
@@ -420,7 +420,6 @@ void CoopLobbyWindow::DrawHome() {
             ZeldaOnlineRoomWindow::Instance->CenterAndExpand();
         }
     }
-    ImGui::SameLine();
     bool showOnTitle = CVarGetInteger(kShowOnTitleCVar, 1) != 0;
     if (ImGui::Checkbox("Show at the title screen", &showOnTitle)) {
         CVarSetInteger(kShowOnTitleCVar, showOnTitle ? 1 : 0);
@@ -446,20 +445,21 @@ void CoopLobbyWindow::DrawPlaythroughRow(int index) {
         return;
     }
 
-    std::string detail = "Last played " + FormatDate(p.lastPlayed);
-    if (p.lastFile >= 0)
-        detail += ", " + FileLabel(p.lastFile);
+    std::vector<std::string> details;
+    details.push_back((p.lastPlayed > 0 ? "Last played " + FormatDate(p.lastPlayed) : "Not played from the lobby yet") +
+                      (p.lastFile >= 0 ? ", " + FileLabel(p.lastFile) : std::string()));
     if (!p.lastPlayers.empty())
-        detail += ", with " + p.lastPlayers;
-    if (ImGui::Selectable(("##row" + std::to_string(index)).c_str(), m_selected == index, 0,
-                          ImVec2(0.0f, ImGui::GetTextLineHeight() * 2.0f + 2.0f)))
+        details.push_back("With " + p.lastPlayers);
+    const float rowHeight = ImGui::GetTextLineHeightWithSpacing() * (float)(1 + details.size());
+    if (ImGui::Selectable(("##row" + std::to_string(index)).c_str(), m_selected == index, 0, ImVec2(0.0f, rowHeight)))
         m_selected = index;
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0))
         StartHosting(index);
     ImGui::SameLine(ImGui::GetStyle().ItemSpacing.x);
     ImGui::BeginGroup();
     ImGui::TextUnformatted(p.name.c_str());
-    ImGui::TextDisabled("%s", detail.c_str());
+    for (const auto& line : details)
+        ImGui::TextDisabled("%s", line.c_str());
     ImGui::EndGroup();
     if (ImGui::BeginPopupContextItem("##ctx")) {
         if (ImGui::MenuItem("Rename")) {
@@ -480,7 +480,9 @@ void CoopLobbyWindow::DrawPlaythroughRow(int index) {
 void CoopLobbyWindow::DrawHostPick() {
     EnsureListLoaded();
     ImGui::TextUnformatted("Which playthrough?");
-    ImGui::TextDisabled("Right-click one to rename it or see its team code.");
+    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+    ImGui::TextWrapped("Right-click one to rename it or see its team code.");
+    ImGui::PopStyleColor();
     ImGui::Separator();
 
     if (m_list.hosted.empty())
@@ -506,7 +508,7 @@ void CoopLobbyWindow::DrawHostPick() {
 
     ImGui::Spacing();
     ImGui::BeginDisabled(m_selected < 0 || m_selected >= (int)m_list.hosted.size());
-    if (BigButton(ICON_FA_PLAY "  Continue this playthrough"))
+    if (BigButton(ICON_FA_PLAY "  Continue"))
         StartHosting(m_selected);
     ImGui::EndDisabled();
 
