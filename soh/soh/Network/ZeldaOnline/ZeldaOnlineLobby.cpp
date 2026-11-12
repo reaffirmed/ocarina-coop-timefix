@@ -63,6 +63,8 @@ static PartySettings SettingsFromCVars() {
     s.healthMultiplier = CVarGetInteger("gZeldaOnline.Party.HealthMultiplier", 0) != 0;
     s.enemyHealthWeight = CVarGetFloat("gZeldaOnline.Party.EnemyHealthWeight", 1.0f);
     s.bossHealthWeight = CVarGetFloat("gZeldaOnline.Party.BossHealthWeight", 1.0f);
+    s.damageMultiplier = CVarGetInteger("gZeldaOnline.Party.DamageMultiplier", 0) != 0;
+    s.enemyDamageWeight = CVarGetFloat("gZeldaOnline.Party.EnemyDamageWeight", 1.0f);
     s.shareAmmoRupeesHp = CVarGetInteger("gZeldaOnline.Party.ShareAmmoRupeesHp", 0) != 0;
     s.storyCoop = true;
     return s;
@@ -72,6 +74,7 @@ static nlohmann::json SettingsToJson(const PartySettings& s) {
     return { { "privateDungeons", s.privateDungeons },     { "extraEnemies", s.extraEnemies },
              { "extraEnemyWeight", s.extraEnemyWeight },   { "healthMultiplier", s.healthMultiplier },
              { "enemyHealthWeight", s.enemyHealthWeight }, { "bossHealthWeight", s.bossHealthWeight },
+             { "damageMultiplier", s.damageMultiplier },   { "enemyDamageWeight", s.enemyDamageWeight },
              { "shareAmmoRupeesHp", s.shareAmmoRupeesHp } };
 }
 
@@ -85,6 +88,8 @@ static PartySettings SettingsFromJson(const nlohmann::json& j) {
     s.healthMultiplier = j.value("healthMultiplier", s.healthMultiplier);
     s.enemyHealthWeight = std::clamp(j.value("enemyHealthWeight", s.enemyHealthWeight), 0.0f, 5.0f);
     s.bossHealthWeight = std::clamp(j.value("bossHealthWeight", s.bossHealthWeight), 0.0f, 5.0f);
+    s.damageMultiplier = j.value("damageMultiplier", s.damageMultiplier);
+    s.enemyDamageWeight = std::clamp(j.value("enemyDamageWeight", s.enemyDamageWeight), 0.0f, 5.0f);
     s.shareAmmoRupeesHp = j.value("shareAmmoRupeesHp", s.shareAmmoRupeesHp);
     return s;
 }
@@ -621,6 +626,7 @@ bool CoopLobbyWindow::DrawStorySettings(PartySettings& s) {
         if (!s.privateDungeons) {
             s.extraEnemies = false;
             s.healthMultiplier = false;
+            s.damageMultiplier = false;
         }
     }
     tooltip("Your party gets its own copy of every dungeon, apart from other players on the server.\n"
@@ -638,6 +644,12 @@ bool CoopLobbyWindow::DrawStorySettings(PartySettings& s) {
     if (s.healthMultiplier) {
         changed |= slider("##zo_lobby_enemy_hp", &s.enemyHealthWeight, "Enemy health %.1f");
         changed |= slider("##zo_lobby_boss_hp", &s.bossHealthWeight, "Boss health %.1f");
+    }
+    changed |= ImGui::Checkbox("Harder hits", &s.damageMultiplier);
+    tooltip("Enemies and bosses deal more damage for each player in the party:\n"
+            "+0.25 x party size x the weight below.");
+    if (s.damageMultiplier) {
+        changed |= slider("##zo_lobby_enemy_dmg", &s.enemyDamageWeight, "Enemy damage %.1f");
     }
     ImGui::EndDisabled();
 

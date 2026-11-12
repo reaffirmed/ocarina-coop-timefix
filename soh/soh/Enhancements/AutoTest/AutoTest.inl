@@ -181,6 +181,8 @@ struct AutoTestAccess {
         if (step.contains("story_coop")) s.storyCoop = step["story_coop"].get<bool>();
         if (step.contains("share_ammo")) s.shareAmmoRupeesHp = step["share_ammo"].get<bool>();
         if (step.contains("private_dungeons")) s.privateDungeons = step["private_dungeons"].get<bool>();
+        if (step.contains("damage_multiplier")) s.damageMultiplier = step["damage_multiplier"].get<bool>();
+        if (step.contains("enemy_damage_weight")) s.enemyDamageWeight = step["enemy_damage_weight"].get<float>();
         if (step.contains("story_code")) {
             // "auto" is what the party window does when the admin leaves the code empty
             s.storyCode = step["story_code"].get<std::string>();
@@ -1242,6 +1244,29 @@ bool RunStep(const json& step) {
             return true;
         }
         Finish(false, "stand_near_chest: no such chest");
+        return true;
+    }
+    if (op == "enemy_hit") {
+        // Lands an enemy hit of `damage` (1/16 hearts, like an AT collider's damage) on Link through the player's own
+        // hit response, the path the party damage multiplier scales. Records health before and after as `name`.
+        if (!PlayReady()) return timedOut("enemy_hit not ready");
+        Player* pl = GET_PLAYER(gPlayState);
+        const s16 before = gSaveContext.health;
+        pl->invincibilityTimer = 0;
+        pl->actor.colChkInfo.damage = (u8)step.value("damage", 8);
+        func_80837C0C(gPlayState, pl, 0, 4.0f, 5.0f, pl->actor.shape.rot.y, 20);
+        json o;
+        o["name"] = step.value("name", "hit");
+        o["frame"] = sState.frame;
+        o["scene"] = gPlayState->sceneNum;
+        o["party_size"] = AutoTestAccess::PartySize();
+        o["damage_multiplier"] = AutoTestAccess::Settings().damageMultiplier;
+        o["before"] = before;
+        o["after"] = gSaveContext.health;
+        o["lost"] = before - gSaveContext.health;
+        sState.observations.push_back(o);
+        WriteLog();
+        Event("enemy_hit lost " + std::to_string(before - gSaveContext.health));
         return true;
     }
     if (op == "spawn_collectible") {

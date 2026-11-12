@@ -1,0 +1,369 @@
+{
+  "name": "damage",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 21650
+  },
+  "boot": {
+    "entrance": 187,
+    "age": "child"
+  },
+  "roles": {
+    "A": {
+      "name": "TestA",
+      "steps": [
+        {
+          "op": "wait_play",
+          "timeout_frames": 1800
+        },
+        {
+          "op": "reset_inventory"
+        },
+        {
+          "op": "connect"
+        },
+        {
+          "op": "wait_until",
+          "cond": "connected",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "wait_until",
+          "cond": "net_id",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "warp",
+          "entrance": 238,
+          "scene": 85,
+          "timeout_frames": 1800
+        },
+        {
+          "op": "wait_until",
+          "cond": "other_players",
+          "n": 1,
+          "timeout_frames": 3600
+        },
+        {
+          "op": "create_party",
+          "story_coop": true,
+          "story_code": "dmg-test",
+          "private_dungeons": true,
+          "damage_multiplier": true,
+          "enemy_damage_weight": 1.0
+        },
+        {
+          "op": "wait_until",
+          "cond": "has_party",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "wait_until",
+          "cond": "story_active",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "invite"
+        },
+        {
+          "op": "wait_until",
+          "cond": "party_size",
+          "n": 2,
+          "timeout_frames": 3600
+        },
+        {
+          "op": "set_flag",
+          "type": "inf_table",
+          "flag": 452
+        },
+        {
+          "op": "wait_frames",
+          "n": 100
+        },
+        {
+          "op": "warp",
+          "entrance": 0,
+          "scene": 0,
+          "timeout_frames": 1800
+        },
+        {
+          "op": "wait_frames",
+          "n": 150
+        },
+        {
+          "op": "set_health",
+          "health": 48
+        },
+        {
+          "op": "wait_frames",
+          "n": 30
+        },
+        {
+          "op": "enemy_hit",
+          "damage": 8,
+          "name": "hit_dungeon_on"
+        },
+        {
+          "op": "wait_frames",
+          "n": 90
+        },
+        {
+          "op": "set_party_settings",
+          "damage_multiplier": false
+        },
+        {
+          "op": "wait_frames",
+          "n": 60
+        },
+        {
+          "op": "set_health",
+          "health": 48
+        },
+        {
+          "op": "wait_frames",
+          "n": 30
+        },
+        {
+          "op": "enemy_hit",
+          "damage": 8,
+          "name": "hit_dungeon_off"
+        },
+        {
+          "op": "wait_frames",
+          "n": 90
+        },
+        {
+          "op": "set_party_settings",
+          "damage_multiplier": true,
+          "enemy_damage_weight": 2.0
+        },
+        {
+          "op": "wait_frames",
+          "n": 60
+        },
+        {
+          "op": "set_health",
+          "health": 48
+        },
+        {
+          "op": "wait_frames",
+          "n": 30
+        },
+        {
+          "op": "enemy_hit",
+          "damage": 8,
+          "name": "hit_dungeon_w2"
+        },
+        {
+          "op": "wait_frames",
+          "n": 90
+        },
+        {
+          "op": "set_party_settings",
+          "enemy_damage_weight": 1.0
+        },
+        {
+          "op": "wait_frames",
+          "n": 60
+        },
+        {
+          "op": "warp",
+          "entrance": 238,
+          "scene": 85,
+          "timeout_frames": 1800
+        },
+        {
+          "op": "wait_frames",
+          "n": 150
+        },
+        {
+          "op": "set_health",
+          "health": 48
+        },
+        {
+          "op": "wait_frames",
+          "n": 30
+        },
+        {
+          "op": "enemy_hit",
+          "damage": 8,
+          "name": "hit_overworld_on"
+        },
+        {
+          "op": "wait_frames",
+          "n": 90
+        },
+        {
+          "op": "set_flag",
+          "type": "inf_table",
+          "flag": 453
+        },
+        {
+          "op": "wait_frames",
+          "n": 120
+        },
+        {
+          "op": "quit",
+          "pass": true
+        }
+      ]
+    },
+    "B": {
+      "name": "TestB",
+      "steps": [
+        {
+          "op": "wait_play",
+          "timeout_frames": 1800
+        },
+        {
+          "op": "reset_inventory"
+        },
+        {
+          "op": "connect"
+        },
+        {
+          "op": "wait_until",
+          "cond": "connected",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "wait_until",
+          "cond": "net_id",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "warp",
+          "entrance": 238,
+          "scene": 85,
+          "timeout_frames": 1800
+        },
+        {
+          "op": "wait_until",
+          "cond": "invite_pending",
+          "timeout_frames": 7200
+        },
+        {
+          "op": "accept_invite"
+        },
+        {
+          "op": "wait_until",
+          "cond": "has_party",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "wait_until",
+          "cond": "party_size",
+          "n": 2,
+          "timeout_frames": 3600
+        },
+        {
+          "op": "wait_until",
+          "cond": "flag",
+          "type": "inf_table",
+          "flag": 452,
+          "timeout_frames": 7200
+        },
+        {
+          "op": "wait_frames",
+          "n": 60
+        },
+        {
+          "op": "warp",
+          "entrance": 0,
+          "scene": 0,
+          "timeout_frames": 1800
+        },
+        {
+          "op": "wait_until",
+          "cond": "flag",
+          "type": "inf_table",
+          "flag": 453,
+          "timeout_frames": 18000
+        },
+        {
+          "op": "quit",
+          "pass": true
+        }
+      ]
+    }
+  },
+  "assertions": [
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "hit_dungeon_on",
+      "path": "party_size",
+      "op": "eq",
+      "value": 2,
+      "label": "party of 2 when hit"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "hit_dungeon_on",
+      "path": "scene",
+      "op": "eq",
+      "value": 0,
+      "label": "first hits land in the Deku Tree"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "hit_dungeon_on",
+      "path": "lost",
+      "op": "eq",
+      "value": 12,
+      "label": "dungeon, multiplier on (weight 1): 8 damage lands as 12 (1.5x)"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "hit_dungeon_off",
+      "path": "lost",
+      "op": "eq",
+      "value": 8,
+      "label": "dungeon, multiplier off: vanilla 8"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "hit_dungeon_w2",
+      "path": "lost",
+      "op": "eq",
+      "value": 16,
+      "label": "dungeon, weight 2: 8 damage lands as 16 (2x)"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "hit_overworld_on",
+      "path": "scene",
+      "op": "eq",
+      "value": 85,
+      "label": "last hit lands in Kokiri Forest"
+    },
+    {
+      "type": "each",
+      "roles": [
+        "A"
+      ],
+      "obs": "hit_overworld_on",
+      "path": "lost",
+      "op": "eq",
+      "value": 8,
+      "label": "outside dungeons the multiplier does nothing: vanilla 8"
+    }
+  ]
+}
