@@ -216,6 +216,48 @@ struct AutoTestAccess {
     static bool CoopMenuOpen() {
         return C()->m_coopMenuOpen;
     }
+    // Test only: a death marker `dist` units in front of Link, holding `rupees` (as a Game Over leaves one)
+    static void PlaceMarker(float dist, int rupees) {
+        Player* p = GET_PLAYER(gPlayState);
+        auto& m = C()->m_coopMarker;
+        m = ZeldaOnlineClient::CoopMarker();
+        m.has = true;
+        m.scene = gPlayState->sceneNum;
+        m.age = gSaveContext.linkAge;
+        m.x = p->actor.world.pos.x + Math_SinS(p->actor.shape.rot.y) * dist;
+        m.y = p->actor.world.pos.y;
+        m.z = p->actor.world.pos.z + Math_CosS(p->actor.shape.rot.y) * dist;
+        m.rupees = rupees;
+        C()->m_coopDarkLinkSpawned = false;
+    }
+    // Puts Link `dist` units short of the death marker (on the line from where he stands), facing it
+    static bool MoveToMarker(float dist) {
+        auto& m = C()->m_coopMarker;
+        if (!m.has)
+            return false;
+        Player* p = GET_PLAYER(gPlayState);
+        float dx = p->actor.world.pos.x - m.x, dz = p->actor.world.pos.z - m.z;
+        float len = sqrtf(dx * dx + dz * dz);
+        if (len < 1.0f) { dx = 1.0f; dz = 0.0f; len = 1.0f; }
+        p->actor.world.pos.x = m.x + dx / len * dist;
+        p->actor.world.pos.z = m.z + dz / len * dist;
+        p->actor.world.pos.y = m.y;
+        p->actor.prevPos = p->actor.world.pos;
+        Vec3f mp = { m.x, m.y, m.z };
+        s16 yaw = Math_Vec3f_Yaw(&p->actor.world.pos, &mp);
+        p->actor.shape.rot.y = p->actor.world.rot.y = p->yaw = yaw;
+        return true;
+    }
+    // Test only: Dark Link's health to 0, as the last sword hit leaves it
+    static bool BeatDarkLink() {
+        if (C()->m_coopDarkLink == nullptr)
+            return false;
+        C()->m_coopDarkLink->colChkInfo.health = 0;
+        return true;
+    }
+    static int DarkLinkHealth() {
+        return C()->m_coopDarkLink != nullptr ? C()->m_coopDarkLink->colChkInfo.health : -1;
+    }
     // The first teammate's puppet in this scene (nullptr if none)
     static Actor* PeerActor() {
         for (auto& entry : C()->m_networkedActors) {
@@ -536,6 +578,7 @@ bool SaveField(const std::string& full, bool write, int64_t& value) {
         if (name == "coop_dark_link") { value = AutoTestAccess::CoopDarkLink(); return true; }
         if (name == "coop_menu") { value = AutoTestAccess::CoopMenuOpen(); return true; }
         if (name == "warp_hold") { value = AutoTestAccess::WarpHolding(); return true; }
+        if (name == "coop_death_penalty") { value = AutoTestAccess::Settings().deathPenalty; return true; }
     }
     return false;
 }
@@ -591,6 +634,7 @@ json Observe(const json& step) {
         co["marker_rupees"] = AutoTestAccess::CoopMarkerRupees();
         co["marker_scene"] = AutoTestAccess::CoopMarkerScene();
         co["dark_link"] = AutoTestAccess::CoopDarkLink();
+        co["dark_link_health"] = AutoTestAccess::DarkLinkHealth();
         co["notice"] = AutoTestAccess::CoopNotice();
         co["magic"] = gSaveContext.magic;
         co["game_over_state"] = gPlayState != nullptr ? (int)gPlayState->gameOverCtx.state : -1;
@@ -1545,6 +1589,19 @@ bool RunStep(const json& step) {
         sState.observations.push_back(o);
         WriteLog();
         Event(std::string("coop_bottle given ") + (given ? "yes" : "no"));
+        return true;
+    }
+    if (op == "coop_place_marker") {
+        if (!PlayReady()) return timedOut("coop_place_marker not ready");
+        AutoTestAccess::PlaceMarker(step.value("dist", 150.0f), step.value("rupees", 50));
+        return true;
+    }
+    if (op == "move_to_marker") {
+        if (!PlayReady() || !AutoTestAccess::MoveToMarker(step.value("dist", 0.0f))) return timedOut("move_to_marker: no marker");
+        return true;
+    }
+    if (op == "coop_beat_dark_link") {
+        if (!AutoTestAccess::BeatDarkLink()) return timedOut("coop_beat_dark_link: no Dark Link");
         return true;
     }
     if (op == "peer_hit") {

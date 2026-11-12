@@ -79,6 +79,8 @@ frames):
 | `peer_hit` | `damage` (default 32), `name`: a teammate's hit through the friendly fire rules; records `allowed`, `before`, `after`, `lost` |
 | `coop_song` | `song` (default Zelda's Lullaby): finishes a free play song, as putting the ocarina away does |
 | `coop_bottle` | `item` (default 24, a fairy; 21 red potion, 22 green, 23 blue, 26 milk), `name`: uses that bottle on C-Left; records `given`, `slot_after` |
+| `coop_place_marker`, `move_to_marker` | `dist`, `rupees` / `dist`: puts a death marker in front of Link, or Link that far from the marker |
+| `coop_beat_dark_link` | sets the marker's Dark Link to 0 health, as the last hit does |
 | `log`, `quit` | `msg` / `pass`, `error` |
 
 Every step takes `timeout_frames`; a timeout fails the scenario. Scenarios: `smoke`, `damage` (party Damage Multiplier in and out of a dungeon), `items` (shared non-consumables, per-player ammo/rupees/HP/bottle contents, Share Ammo on, Story Co-op switched off mid session), `items_off` (Story Co-op never on), `flags` (shared story flags, per-player gift flags, Weird Egg, Zelda's Letter gated on Lullaby). Cross-client sync inside a scenario uses a shared infTable flag as a signal.  Optional top-level `cvars` and per-role `cvars` set
@@ -95,7 +97,8 @@ player list (`peers`: id, name, in_party, scene, room, age), the number of remot
 the client sees them, downed, downed teammates, ready check, join summary, death marker, Dark Link, notice, magic,
 game over state). Save fields for `wait_until` cond `field` include `magic`, `magic_level`, `rupees`, `health`,
 `game_over_state`, `player_dead`, `coop_downed`, `coop_downed_mates`, `coop_ready_hold`, `coop_ready_vote`,
-`coop_join_count`, `coop_marker`, `coop_marker_rupees`, `coop_dark_link`, `coop_menu`, `warp_hold`.
+`coop_join_count`, `coop_marker`, `coop_marker_rupees`, `coop_dark_link`, `coop_menu`, `coop_death_penalty`,
+`warp_hold`.
 
 ## In-game flags
 
@@ -166,3 +169,7 @@ heart, a death next to a teammate goes down instead of a Game Over, Zelda's Lull
 fairy given from a bottle revives with 8 hearts and empties the bottle, a red potion fully heals a teammate who is up,
 walking into the Deku Tree asks the other player for the ready check, and a Game Over with nobody around waits the
 cooldown and leaves a marker with half the rupees.
+
+`coop_darklink` (both adult) places a marker with Marker + Dark Link: Dark Link appears with the notice, wakes up and
+fights when Link comes close, and beating him gives the rupees back. Then the host switches the party to Marker only
+and walking onto a new marker picks its rupees up.
