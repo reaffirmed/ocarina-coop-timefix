@@ -2,6 +2,7 @@
 #include "Player.hpp"
 #include "Scene.hpp"
 #include "nlohmann/json.hpp"
+#include <algorithm>
 #include <cstdio>
 #include <random>
 #include <cstring>
@@ -238,6 +239,8 @@ namespace ZeldaOnline
 {
 	// A travel that has not finished by then (Chamber of Sages included) is considered done
 	static const int STORY_TRAVEL_TIMEOUT_SECONDS = 180;
+	// how often a running warp vote checks for members who left the scene
+	static const int STORY_WARP_CHECK_MS = 500;
 	// Unsaved team save changes are written this long after the first change. Short, so a crash of the server or of
 	// a client mid-dungeon loses at most a second of progress.
 	static const int STORY_SAVE_DEBOUNCE_SECONDS = 1;
@@ -280,6 +283,7 @@ namespace ZeldaOnline
 			ResetVotes();
 			m_era = ERA_UNKNOWN;
 			SendVoteStatusTo(nullptr, false);
+			EndWarpVote(false);
 			if (m_storyDirty)
 				WriteStorySave();
 		}
@@ -471,6 +475,9 @@ namespace ZeldaOnline
 			}
 		}
 
+		if (m_warp.active)
+			EvaluateWarpVote(false);
+
 		if (m_members.empty())
 		{
 			ResetVotes();
@@ -539,6 +546,240 @@ namespace ZeldaOnline
 		return 1;
 	}
 
+	Player* Party::MemberByID(uint16_t netID) const
+	{
+		for (Player* member : m_members)
+		{
+			if ((uint16_t)member->NetworkID() == netID)
+				return member;
+		}
+		return nullptr;
+	}
+
+	static bool WarpListHas(const std::vector<uint16_t>& list, uint16_t netID)
+	{
+		for (uint16_t id : list)
+		{
+			if (id == netID)
+				return true;
+		}
+		return false;
+	}
+
+	static void WarpListRemove(std::vector<uint16_t>& list, uint16_t netID)
+	{
+		for (size_t i = 0; i < list.size(); i++)
+		{
+			if (list[i] == netID)
+			{
+				list.erase(list.begin() + i);
+				return;
+			}
+		}
+	}
+
+	void Party::HandleWarpVote(Player* player, uint8_t action)
+	{
+		if (!m_storyCoop || !HasMember(player))
+			return;
+
+		const uint16_t netID = (uint16_t)player->NetworkID();
+		Scene* scene = player->CurrentScene();
+
+		if (action == STORY_WARP_HOLD)
+		{
+			if (m_warp.active && m_warp.scene == scene)
+			{
+				// a second member started the same warp (both stepped into the blue warp): they hold too and are ready
+				if (!WarpListHas(m_warp.holders, netID))
+					m_warp.holders.push_back(netID);
+				if (!WarpListHas(m_warp.participants, netID))
+					m_warp.participants.push_back(netID);
+				if (!WarpListHas(m_warp.ready, netID))
+					m_warp.ready.push_back(netID);
+				EvaluateWarpVote(true);
+				return;
+			}
+
+			std::vector<uint16_t> participants;
+			if (scene != nullptr)
+			{
+				for (Player* member : m_members)
+				{
+					if (member->CurrentScene() == scene)
+						participants.push_back((uint16_t)member->NetworkID());
+				}
+			}
+
+			// nobody else to wait for, or the party is already voting somewhere else: go right away
+			if (m_warp.active || scene == nullptr || participants.size() < 2)
+			{
+				player->SendPacket(newPacket(SERVER_PACKET_STORY_WARP_GO));
+				return;
+			}
+
+			m_warp.active = true;
+			m_warp.scene = scene;
+			m_warp.holders = { netID };
+			m_warp.participants = participants;
+			m_warp.ready = { netID };
+			m_warp.nextCheck = std::chrono::steady_clock::now() + std::chrono::milliseconds(STORY_WARP_CHECK_MS);
+			EvaluateWarpVote(true);
+			return;
+		}
+
+		if (!m_warp.active || !WarpListHas(m_warp.participants, netID))
+		{
+			// nothing to vote on (any more): make sure this member is not left waiting
+			if (action != STORY_WARP_WITHDRAW)
+				player->SendPacket(newPacket(SERVER_PACKET_STORY_WARP_STATUS) << PackedUInt1(0u) << PackedUInt1(0u)
+					<< PackedUInt1(0u) << PackedUInt1(0u) << PackedUInt1(0u) << PackedUInt1(0u));
+			if (action == STORY_WARP_GO_NOW)
+				player->SendPacket(newPacket(SERVER_PACKET_STORY_WARP_GO));
+			return;
+		}
+
+		switch (action)
+		{
+		case STORY_WARP_READY:
+			if (!WarpListHas(m_warp.ready, netID))
+				m_warp.ready.push_back(netID);
+			EvaluateWarpVote(true);
+			break;
+
+		case STORY_WARP_GO_NOW:
+			if (WarpListHas(m_warp.holders, netID))
+				EndWarpVote(true);
+			break;
+
+		case STORY_WARP_WITHDRAW:
+		default:
+			if (WarpListHas(m_warp.holders, netID))
+			{
+				// a holder gave up its warp (died, left the scene): it no longer takes part
+				WarpListRemove(m_warp.holders, netID);
+				WarpListRemove(m_warp.participants, netID);
+			}
+			WarpListRemove(m_warp.ready, netID);
+			EvaluateWarpVote(true);
+			break;
+		}
+	}
+
+	void Party::EvaluateWarpVote(bool forceBroadcast)
+	{
+		if (!m_warp.active)
+			return;
+
+		// drop members who left the party or the scene
+		bool changed = false;
+		for (size_t i = 0; i < m_warp.participants.size();)
+		{
+			Player* member = MemberByID(m_warp.participants[i]);
+			if (member == nullptr || member->CurrentScene() != m_warp.scene)
+			{
+				uint16_t gone = m_warp.participants[i];
+				m_warp.participants.erase(m_warp.participants.begin() + i);
+				WarpListRemove(m_warp.holders, gone);
+				WarpListRemove(m_warp.ready, gone);
+				if (member != nullptr)
+					member->SendPacket(newPacket(SERVER_PACKET_STORY_WARP_STATUS) << PackedUInt1(0u) << PackedUInt1(0u)
+						<< PackedUInt1(0u) << PackedUInt1(0u) << PackedUInt1(0u) << PackedUInt1(0u));
+				changed = true;
+				continue;
+			}
+			i++;
+		}
+
+		if (m_warp.holders.empty())
+		{
+			EndWarpVote(false);
+			return;
+		}
+
+		bool allReady = true;
+		for (uint16_t id : m_warp.participants)
+		{
+			if (!WarpListHas(m_warp.ready, id) && !WarpListHas(m_warp.holders, id))
+			{
+				allReady = false;
+				break;
+			}
+		}
+
+		if (allReady)
+			EndWarpVote(true);
+		else if (forceBroadcast || changed)
+			SendWarpStatus(1);
+	}
+
+	void Party::EndWarpVote(bool go)
+	{
+		if (!m_warp.active)
+			return;
+
+		if (go)
+		{
+			for (uint16_t id : m_warp.holders)
+			{
+				if (Player* member = MemberByID(id))
+					member->SendPacket(newPacket(SERVER_PACKET_STORY_WARP_GO));
+			}
+		}
+
+		SendWarpStatus(go ? 2 : 0);
+		m_warp = WarpVote();
+	}
+
+	void Party::SendWarpStatus(uint8_t state)
+	{
+		std::string starter;
+		if (!m_warp.holders.empty())
+		{
+			if (Player* first = MemberByID(m_warp.holders[0]))
+				starter = first->NickName().substr(0, 255);
+		}
+
+		std::vector<std::string> missing;
+		if (state == 1)
+		{
+			for (uint16_t id : m_warp.participants)
+			{
+				if (WarpListHas(m_warp.ready, id) || WarpListHas(m_warp.holders, id))
+					continue;
+				if (Player* member = MemberByID(id))
+					missing.push_back(member->NickName().substr(0, 255));
+			}
+		}
+
+		size_t ready = 0;
+		for (uint16_t id : m_warp.participants)
+		{
+			if (WarpListHas(m_warp.ready, id) || WarpListHas(m_warp.holders, id))
+				ready++;
+		}
+
+		for (uint16_t id : m_warp.participants)
+		{
+			Player* member = MemberByID(id);
+			if (member == nullptr)
+				continue;
+
+			uint8_t role = WarpListHas(m_warp.holders, id) ? 2 : (WarpListHas(m_warp.ready, id) ? 1 : 0);
+			ByteStream packet = newPacket(SERVER_PACKET_STORY_WARP_STATUS);
+			packet << PackedUInt1(state) << PackedUInt1((unsigned int)std::min<size_t>(ready, 255))
+				<< PackedUInt1((unsigned int)std::min<size_t>(m_warp.participants.size(), 255)) << PackedUInt1(role)
+				<< PackedUInt1((unsigned int)starter.length()) << starter
+				<< PackedUInt1((unsigned int)std::min<size_t>(missing.size(), 255));
+			for (size_t i = 0; i < missing.size() && i < 255; i++)
+			{
+				packet << PackedUInt1((unsigned int)missing[i].length());
+				packet << missing[i];
+			}
+			member->SendPacket(packet);
+		}
+	}
+
 	void Party::TickAll(std::chrono::steady_clock::time_point now)
 	{
 		std::vector<std::shared_ptr<Party>> parties;
@@ -546,7 +787,7 @@ namespace ZeldaOnline
 		{
 			if (auto party = entry.second.lock())
 			{
-				if (party->m_storyCoop && (party->m_travelling || party->m_storyDirty))
+				if (party->m_storyCoop && (party->m_travelling || party->m_storyDirty || party->m_warp.active))
 					parties.push_back(party);
 			}
 		}
@@ -555,6 +796,13 @@ namespace ZeldaOnline
 		{
 			if (party->m_travelling && now >= party->m_travelDeadline)
 				party->CheckTravelDone(true);
+
+			// members walking out of the scene drop out of the warp vote
+			if (party->m_warp.active && now >= party->m_warp.nextCheck)
+			{
+				party->m_warp.nextCheck = now + std::chrono::milliseconds(STORY_WARP_CHECK_MS);
+				party->EvaluateWarpVote(false);
+			}
 
 			if (party->m_storyDirty && now - party->m_storyDirtySince >= std::chrono::seconds(STORY_SAVE_DEBOUNCE_SECONDS))
 				party->WriteStorySave();
