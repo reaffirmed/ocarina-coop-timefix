@@ -209,7 +209,6 @@ void SetupGuiElements() {
     mCoopLobbyWindow = std::make_shared<ZeldaOnline::CoopLobbyWindow>("", false, "CoopLobby");
     ZeldaOnline::CoopLobbyWindow::Instance = mCoopLobbyWindow.get();
     gui->AddGuiWindow(mCoopLobbyWindow);
-
 }
 
 void Destroy() {

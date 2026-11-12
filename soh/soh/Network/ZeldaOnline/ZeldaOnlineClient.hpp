@@ -196,15 +196,14 @@ class ZeldaOnlineClient : public ZNetworking {
 
   private:
     LobbyRole m_lobbyRole = LobbyRole::None;
-    PartySettings m_lobbySettings;           // host: the playthrough's story settings and team code
-    std::string m_lobbyHost;                 // the helper's local address, used instead of the saved server
+    PartySettings m_lobbySettings; // host: the playthrough's story settings and team code
+    std::string m_lobbyHost;       // the helper's local address, used instead of the saved server
     int m_lobbyPort = 0;
     bool m_lobbyPartyRequested = false;
     std::unordered_set<uint32_t> m_lobbyInvited;
     void LobbyAfterAuth();
     void LobbyInviteEveryone();
     bool LobbyAutoAccept(uint32_t fromNetworkID, uint32_t partyID);
-
 
     void ReportBandwidth();
     bool NextPacket(ByteStream& out);

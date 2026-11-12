@@ -272,7 +272,6 @@ void ZeldaOnlineClient::Connect() {
         m_port = m_lobbyPort;
     }
 
-
     std::vector<std::string> archives;
     SplitSkinRef(m_skinRef, m_skinName, archives);
     ZeldaOnlineRoomWindow::Instance->SetConnecting(true);
@@ -1459,7 +1458,6 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
                 ZeldaOnlineRoomWindow::Instance->RemovePlayer(networkID);
             m_lobbyInvited.erase(networkID);
 
-            
         } break;
 
         case SERVER_PACKET_PLAYER_LIST_UPDATE: {
