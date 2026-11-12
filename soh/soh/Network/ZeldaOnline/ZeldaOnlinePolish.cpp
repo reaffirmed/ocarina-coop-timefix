@@ -104,9 +104,11 @@ struct QueuedBox {
 struct State {
     bool hooks = false;
 
-    // connection banner
-    enum class Conn { Hidden, Reconnecting, Back } conn = Conn::Hidden;
+    // connection notices (bottom right, with the other notifications)
+    enum class Conn { Hidden, Reconnecting } conn = Conn::Hidden;
     Clock::time_point connSince{};
+    uint32_t lostNote = 0;
+    uint32_t hostNote = 0;
 
     // message panel (outside of gameplay)
     std::string panelTitle;
@@ -246,76 +248,31 @@ std::string JoinNames(const std::vector<std::string>& names) {
 
 using Prompt = CoopPolish::PromptText;
 
+// One short line at the bottom centre: "Time travel  1/2 ready   B Cancel", narrow enough to stay clear of the rupee
+// counter at the bottom left and the map at the bottom right
 void DrawPrompt(GraphicsContext* gfxCtx, const Prompt& p) {
-    const float titleScale = 0.55f;
-    const float bodyScale = 0.48f;
-    const s16 w = 184; // clear of the rupee counter at the bottom left
+    const float scale = 0.5f;
+    const s16 pad = 6, gap = 8;
+    const float titleW = TextWidth(p.title, scale);
+    const float countW = p.count.empty() ? 0.0f : TextWidth(p.count, scale) + gap;
+    const float hintW = p.hints.empty() ? 0.0f : TextWidth(p.hints, scale) + gap;
+    const s16 w = (s16)(titleW + countW + hintW) + pad * 2;
+    const s16 h = (s16)(p.bar >= 0.0f ? 19 : 15);
     const s16 x = (s16)(SCREEN_WIDTH / 2 - w / 2);
-    const s16 pad = 6;
-    std::vector<std::string> lines = Wrap(p.body, bodyScale, (float)(w - pad * 2));
-    const s16 lineH = 9;
-    s16 h = pad + 10 + (s16)lines.size() * lineH + (p.bar >= 0.0f ? 6 : 0) + (p.hints.empty() ? 0 : 11) + pad - 2;
-    const s16 y = (s16)(216 - h);
+    const s16 y = (s16)(212 - h);
 
     Panel(gfxCtx, x, y, w, h, 255);
-    s16 cy = y + pad - 1;
-    DrawText(gfxCtx, p.title, x + pad, cy, { 255, 230, 110, 255 }, titleScale);
-    if (!p.count.empty()) {
-        float cw = TextWidth(p.count, bodyScale);
-        DrawText(gfxCtx, p.count, (s16)(x + w - pad - cw), cy + 1, { 170, 200, 255, 255 }, bodyScale);
-    }
-    cy += 11;
-    for (const std::string& line : lines) {
-        DrawText(gfxCtx, line, x + pad, cy, { 255, 255, 255, 255 }, bodyScale);
-        cy += lineH;
-    }
+    s16 cx = x + pad;
+    DrawText(gfxCtx, p.title, cx, y + 3, { 255, 230, 110, 255 }, scale);
+    cx += (s16)(titleW + gap);
+    if (!p.count.empty())
+        DrawText(gfxCtx, p.count, cx, y + 3, { 170, 200, 255, 255 }, scale);
+    if (!p.hints.empty())
+        DrawText(gfxCtx, p.hints, (s16)(x + w - pad - (hintW - gap)), y + 3, { 230, 230, 230, 255 }, scale);
     if (p.bar >= 0.0f) {
         s16 bw = w - pad * 2;
-        FillRect(gfxCtx, x + pad, cy + 1, bw, 3, { 40, 60, 110, 200 });
-        FillRect(gfxCtx, x + pad, cy + 1, (s16)(bw * std::clamp(p.bar, 0.0f, 1.0f)), 3, { 120, 180, 255, 230 });
-        cy += 6;
-    }
-    if (!p.hints.empty()) {
-        float hw = TextWidth(p.hints, bodyScale);
-        DrawText(gfxCtx, p.hints, (s16)(x + w - pad - hw), cy + 1, { 220, 220, 220, 255 }, bodyScale);
-    }
-}
-
-void DrawConnectionBanner(GraphicsContext* gfxCtx) {
-    if (S.conn == State::Conn::Hidden)
-        return;
-    const auto now = Clock::now();
-    const float secs = std::chrono::duration<float>(now - S.connSince).count();
-
-    std::string title, body;
-    Color_RGBA8 edge;
-    if (S.conn == State::Conn::Back) {
-        if (secs > 3.0f) {
-            S.conn = State::Conn::Hidden;
-            return;
-        }
-        title = "Back online";
-        edge = { 110, 230, 120, 220 };
-    } else {
-        int dots = ((int)(secs * 2.0f)) % 4;
-        title = "Connection lost";
-        body = "Reconnecting" + std::string(dots, '.');
-        if (secs >= 20.0f)
-            body += " (" + std::to_string((int)secs) + "s)";
-        edge = { 255, 120, 100, 220 };
-    }
-
-    const float titleScale = 0.5f, bodyScale = 0.45f;
-    s16 w = (s16)std::max(TextWidth(title, titleScale), TextWidth(body + "...", bodyScale)) + 14;
-    s16 h = body.empty() ? 15 : 24;
-    s16 x = (s16)OTRGetRectDimensionFromLeftEdge(10.0f);
-    s16 y = 58; // below the hearts and the magic meter
-    Panel(gfxCtx, x, y, w, h, 230, edge);
-    DrawText(gfxCtx, title, x + 7, y + 3, { edge.r, edge.g, edge.b, 255 }, titleScale);
-    if (!body.empty())
-        DrawText(gfxCtx, body, x + 7, y + 13, { 230, 230, 230, 255 }, bodyScale);
-    if (S.conn == State::Conn::Reconnecting && secs >= 45.0f) {
-        DrawText(gfxCtx, "Is the host still online?", x, y + h + 3, { 230, 230, 230, 220 }, bodyScale);
+        FillRect(gfxCtx, x + pad, y + h - 5, bw, 2, { 40, 60, 110, 200 });
+        FillRect(gfxCtx, x + pad, y + h - 5, (s16)(bw * std::clamp(p.bar, 0.0f, 1.0f)), 2, { 120, 180, 255, 230 });
     }
 }
 
@@ -416,8 +373,6 @@ bool CoopPolish::BuildPrompt(ZeldaOnlineClient* c, PromptText& p) {
     if (c->m_storyHold) {
         p.title = "Time travel";
         p.count = std::to_string(c->m_storyVoted) + "/" + std::to_string(c->m_storyTotal) + " ready";
-        p.body = c->m_storyMissing.empty() ? "Waiting for the party at the Master Sword."
-                                           : "Waiting for " + JoinNames(c->m_storyMissing) + " at the Master Sword.";
         p.hints = HintPair(GLYPH_B, "Cancel");
         return true;
     }
@@ -425,29 +380,23 @@ bool CoopPolish::BuildPrompt(ZeldaOnlineClient* c, PromptText& p) {
         // a ready check (a co-op rule asking everyone before a transition) reads differently from a story warp
         const bool readyCheck =
             (c->m_storyWarpHold && c->m_coopReadyHold) || (!c->m_storyWarpHold && c->m_coopReadyVote);
-        p.title = readyCheck ? "Ready check" : "Continue the story";
+        p.title = readyCheck ? "Ready check" : "Continue";
         p.count = std::to_string(c->m_storyWarpVoted) + "/" + std::to_string(c->m_storyWarpTotal) + " ready";
-        std::string names = JoinNames(c->m_storyWarpMissing);
         if (c->m_storyWarpHold) {
-            p.body = names.empty() ? "Waiting for the party to be ready." : "Waiting for " + names + " to be ready.";
             if (c->m_storyWarpHeard)
-                p.hints = HintPair(GLYPH_L, readyCheck ? "Go in now" : "Go now");
+                p.hints = HintPair(GLYPH_L, "Go now");
         } else if (c->m_storyWarpReady) {
-            p.body = names.empty() ? "You are ready." : "You are ready. Waiting for " + names + ".";
             p.hints = HintPair(GLYPH_B, "Cancel");
         } else {
-            std::string who = c->m_storyWarpStarter.empty() ? std::string("A party member") : c->m_storyWarpStarter;
-            p.body = who + (readyCheck ? " is ready to go on." : " is ready to continue the story.");
-            p.hints = HintPair(GLYPH_L, "I'm ready");
+            p.hints = HintPair(GLYPH_L, "Ready");
         }
         return true;
     }
     if (c->m_storyCsHasPending && c->m_storyCsPromptFrames > 0) {
         const int seconds = (c->m_storyCsPromptFrames + 19) / 20;
-        p.title = "Story scene";
-        p.body = "Watching with the party in " + std::to_string(seconds) + "...";
+        p.title = "Story scene in " + std::to_string(seconds);
         p.bar = S.csPromptMax > 0 ? (float)c->m_storyCsPromptFrames / (float)S.csPromptMax : -1.0f;
-        p.hints = HintPair(GLYPH_L, "Skip, keep playing");
+        p.hints = HintPair(GLYPH_L, "Skip");
         return true;
     }
     return false;
@@ -544,7 +493,7 @@ void CoopPolish::OnFrame() {
 }
 
 void CoopPolish::OnDraw(GraphicsContext* gfxCtx) {
-    DrawConnectionBanner(gfxCtx);
+    UpdateConnectionNotes();
     ZeldaOnlineClient* c = Client();
     if (c != nullptr && gPlayState != nullptr && c->isConnected) {
         Prompt p;
@@ -673,30 +622,55 @@ void CoopPolish::EnsureHooks() {
 
 void CoopPolish::OnConnected(bool reconnected) {
     EnsureHooks();
-    if (reconnected || S.conn == State::Conn::Reconnecting) {
-        S.conn = State::Conn::Back;
-        S.connSince = Clock::now();
+    const bool wasLost = S.conn == State::Conn::Reconnecting;
+    ClearConnectionNotes();
+    if (reconnected || wasLost) {
+        Notification::Emit({ .prefix = "Back online",
+                             .prefixColor = ImVec4(0.45f, 0.9f, 0.5f, 1.0f),
+                             .remainingTime = 5.0f,
+                             .mute = true });
         Cue(NA_SE_SY_FSEL_DECIDE_S);
-    } else {
-        S.conn = State::Conn::Hidden;
     }
 }
 
 void CoopPolish::OnDisconnected(bool willReconnect) {
     EnsureHooks();
     if (!willReconnect) {
-        S.conn = State::Conn::Hidden;
+        ClearConnectionNotes();
         return;
     }
     if (S.conn != State::Conn::Reconnecting) {
         S.conn = State::Conn::Reconnecting;
         S.connSince = Clock::now();
+        // stays up until the connection is back
+        S.lostNote = Notification::Emit({ .prefix = "Connection lost",
+                                          .prefixColor = ImVec4(1.0f, 0.5f, 0.4f, 1.0f),
+                                          .message = "reconnecting...",
+                                          .remainingTime = 24.0f * 3600.0f,
+                                          .mute = true });
         Cue(NA_SE_SY_ERROR);
     }
 }
 
+void CoopPolish::UpdateConnectionNotes() {
+    if (S.conn != State::Conn::Reconnecting || S.hostNote != 0)
+        return;
+    if (std::chrono::duration<float>(Clock::now() - S.connSince).count() >= 45.0f)
+        S.hostNote = Notification::Emit(
+            { .message = "Is the host still online?", .remainingTime = 24.0f * 3600.0f, .mute = true });
+}
+
+void CoopPolish::ClearConnectionNotes() {
+    if (S.lostNote != 0)
+        Notification::Dismiss(S.lostNote);
+    if (S.hostNote != 0)
+        Notification::Dismiss(S.hostNote);
+    S.lostNote = S.hostNote = 0;
+    S.conn = State::Conn::Hidden;
+}
+
 void CoopPolish::OnConnectFailed() {
-    // keeps the banner up with its timer; nothing else to do
+    // the "Connection lost" notice stays up while the client keeps retrying
 }
 
 void CoopPolish::ShowMessage(const std::string& title, const std::string& body) {

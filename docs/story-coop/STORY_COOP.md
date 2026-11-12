@@ -104,7 +104,7 @@ Sharing is state based: clients send a compact progress snapshot, the server mer
 
 ## Time travel together
 
-- Pulling the Master Sword (child) or placing it back (adult) at the pedestal puts you on hold. A **Time travel** banner shows who you are waiting for and how many are ready; B cancels.
+- Pulling the Master Sword (child) or placing it back (adult) at the pedestal puts you on hold. A **Time travel** prompt shows how many are ready; B cancels.
 - B cancels and withdraws your vote. Leaving the scene also withdraws it.
 - When every party member has voted, all of them travel together and each client runs the game's own sequence (the first pull plays the Chamber of Sages).
 - Members who disconnect or leave the party are removed from the count, and nobody is left on hold.
@@ -118,8 +118,8 @@ The party list shows each member's era (Adult or Child).
 
 - When a story cutscene starts for one member, every member in the same scene watches it too: area intros, Zelda, Impa, Sheik, song lessons, the Sages, the Deku Tree, Kakariko burning and the rest.
 - It works for both ways the game starts a cutscene: a cutscene script played in the current scene, and a transition into a scene's cutscene layer (blue warps, the Chamber of Sages). The few story scripts built into their actor instead of the game data (meeting the Great Deku Tree, and his mouth opening after you answer) are shared by name, and only with members in the same room, since they move Link around that actor. Members elsewhere in the scene just get the resulting flags. There is no per cutscene list; only what belongs to one player stays with that player: fence jumps on Epona, being caught by the Gerudo, and the races and horseback archery you start yourself.
-- A cutscene that takes everybody to another scene (blue warps, the Chamber of Sages, Kakariko burning and the other transitions into a scene's cutscene layer) waits until the members in the same scene are ready, like the Master Sword pedestal. The member whose game started it is held under a **Continue the story** banner that names who it is waiting for (L goes now). The others see `<name> is ready to continue the story.` with L to say ready, and keep playing until they press L; then they are held too and can press B to take it back. When everybody in the scene is ready (or the member who started it presses L), the transition runs and the others are taken along. With nobody else in the scene there is no wait. Members in other scenes are not asked. Leaving the scene drops a member out of the vote, and the held member never stays stuck: a disconnect, leaving the party, switching Story Co-op off or a server that does not answer (an older server) lets the transition go ahead. Pressing L also toggles the minimap, as it always does.
-- A cutscene another member starts in your scene does not take over right away: a **Story scene** banner counts down first, with a ticking sound. Do nothing and you watch it with them; press L if you are busy and you keep playing (the story flags still reach you, and an area intro you skip still plays when you next enter the area). There is no countdown for the next part of a sequence you are already watching, or for a warp you said ready for.
+- A cutscene that takes everybody to another scene (blue warps, the Chamber of Sages, Kakariko burning and the other transitions into a scene's cutscene layer) waits until the members in the same scene are ready, like the Master Sword pedestal. The member whose game started it is held under a **Continue** prompt with the ready count (L goes now). The others see `Continue 1/2 ready  L Ready`, and keep playing until they press L; then they are held too and can press B to take it back. When everybody in the scene is ready (or the member who started it presses L), the transition runs and the others are taken along. With nobody else in the scene there is no wait. Members in other scenes are not asked. Leaving the scene drops a member out of the vote, and the held member never stays stuck: a disconnect, leaving the party, switching Story Co-op off or a server that does not answer (an older server) lets the transition go ahead. Pressing L also toggles the minimap, as it always does.
+- A cutscene another member starts in your scene does not take over right away: a **Story scene in 3** prompt counts down first, with a ticking sound. Do nothing and you watch it with them; press L if you are busy and you keep playing (the story flags still reach you, and an area intro you skip still plays when you next enter the area). There is no countdown for the next part of a sequence you are already watching, or for a warp you said ready for.
 - A member who is busy with a text box gets a short moment to finish it first. A member who is already in a cutscene or a transition is watching it already.
 - Members in other scenes are not pulled in. The first visit intro of an area is kept per player, so they still see it when they first get there.
 - If the member who started the cutscene disconnects, the others finish it and play on.
@@ -136,11 +136,12 @@ The presentation code is in `ZeldaOnlinePolish.cpp`, apart from the sync code.
 - **Who found what.** Progress from the party is announced with the item's icon: `Zelda found Hookshot`. With more than
   one other member it says `Your party found ...`. A big catch-up (joining a playthrough that is far ahead) is summed
   up instead of listing every item. An item already announced by a shared chest is not announced twice.
-- **Framed prompts.** The time travel vote, the "continue the story" vote and the cutscene countdown are a framed
-  banner at the bottom of the screen, in the Co-op Lobby's style, with the button icons of the game's font.
-- **Connection banner.** A dropped connection shows `Connection lost / Reconnecting...` at the top left (with a
-  timer after 20 seconds, and a hint after 45), and `Back online` when it is back. It replaces the old green
-  "Connected" and red "Disconnected" text.
+- **Prompts.** The time travel vote, the "continue the story" vote, the ready check and the cutscene countdown are one
+  short framed line at the bottom centre (`Time travel  1/2 ready  B Cancel`), with the button icons of the game's
+  font, kept clear of the rupee counter and the map.
+- **Connection notices.** A dropped connection shows `Connection lost reconnecting...` with the other notifications
+  (bottom right by default), `Is the host still online?` after 45 seconds, and `Back online` when it is back. They
+  replace the old green "Connected" and red "Disconnected" text.
 - **Messages in the game's text box.** Being disconnected by the host, a different release, or a save that does not
   match the party opens the game's own text box while playing (Link waits while it is up), or a panel on the title
   and file select screens, instead of a system dialog.

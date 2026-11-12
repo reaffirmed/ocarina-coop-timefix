@@ -1,5 +1,6 @@
 
 #include "Notification.h"
+#include <algorithm>
 #include <libultraship/bridge/consolevariablebridge.h>
 #include <ship/Context.h>
 
@@ -129,7 +130,7 @@ void Window::UpdateElement() {
     }
 }
 
-void Emit(Options notification) {
+uint32_t Emit(Options notification) {
     notification.id = nextId++;
     if (notification.remainingTime == 0.0f) {
         notification.remainingTime = CVarGetFloat(CVAR_SETTING("Notifications.Duration"), 10.0f);
@@ -139,6 +140,13 @@ void Emit(Options notification) {
         Audio_PlaySoundGeneral(NA_SE_SY_METRONOME, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
                                &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
     }
+    return notification.id;
+}
+
+void Dismiss(uint32_t id) {
+    notifications.erase(
+        std::remove_if(notifications.begin(), notifications.end(), [id](const Options& n) { return n.id == id; }),
+        notifications.end());
 }
 
 } // namespace Notification

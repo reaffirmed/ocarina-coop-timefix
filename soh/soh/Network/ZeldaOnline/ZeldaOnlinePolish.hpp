@@ -3,12 +3,12 @@
 
 // Co-op presentation: what the players see and hear around the network play, kept apart from the sync code.
 //
-// - The connection banner (top left): "Connection lost. Reconnecting..." and "Back online", in the lobby's panel style,
-//   in place of the old "Connected" / "Disconnected" corner text.
+// - Connection notices with the other notifications: "Connection lost, reconnecting..." and "Back online", in place of
+//   the old "Connected" / "Disconnected" corner text.
 // - Messages that used to open a system dialog (kicked, wrong server version, a game that does not match the party)
 //   are shown in the game's own text box while playing, or in a panel on the title and file select screens.
-// - The time travel vote, the "continue the story" vote and the cutscene countdown are drawn as a framed banner with
-//   the button icons of the game's font.
+// - The time travel vote, the "continue the story" vote and the cutscene countdown are one short framed line at the
+//   bottom centre, with the button icons of the game's font.
 // - "Zelda found the Hookshot" with the item's icon, in place of "Party progress received".
 // - Sounds from the game for co-op moments: a friend joins or leaves, says ready, everyone is ready, the countdown.
 // - The party admin's game (vanilla, Master Quest, or which randomizer seed) travels in the party settings, and a
@@ -26,7 +26,7 @@ class ZeldaOnlineClient;
 
 struct CoopPolish {
     // Hooks of its own (overlay drawing, text box, per frame), registered once. They stay on while disconnected, so the
-    // reconnect banner and a kick message still show.
+    // reconnect notices and a kick message still show.
     static void EnsureHooks();
 
     // Connection
@@ -58,14 +58,15 @@ struct CoopPolish {
     // One framed prompt: a yellow heading, wrapped text, an optional bar, and button hints along the bottom
     struct PromptText {
         std::string title;
-        std::string body;
-        std::string count; // "1/2 ready", top right
+        std::string count; // "1/2 ready"
         std::string hints; // with the font's button icons
         float bar = -1.0f; // 0..1, -1 for none
     };
 
   private:
     static bool BuildPrompt(ZeldaOnlineClient* c, PromptText& p);
+    static void UpdateConnectionNotes();
+    static void ClearConnectionNotes();
     static void UpdateCues(ZeldaOnlineClient* c);
     static void UpdateGameCheck(ZeldaOnlineClient* c);
     static void OnFrame();
