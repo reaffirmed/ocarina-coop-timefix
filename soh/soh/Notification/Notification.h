@@ -30,7 +30,10 @@ class Window final : public Ship::GuiWindow {
     void UpdateElement() override;
 };
 
-void Emit(Options notification);
+// Returns the notification's id, for Dismiss.
+uint32_t Emit(Options notification);
+// Removes a notification before its time runs out (does nothing once it has expired).
+void Dismiss(uint32_t id);
 
 } // namespace Notification
 

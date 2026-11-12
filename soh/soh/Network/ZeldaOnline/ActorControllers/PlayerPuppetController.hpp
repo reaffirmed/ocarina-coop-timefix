@@ -3,6 +3,7 @@
 
 #include "../AbstractActorController.hpp"
 #include "../PacketTypes.hpp"
+#include "PuppetSmoothing.hpp"
 
 #include <cstring>
 
@@ -165,7 +166,9 @@ class PlayerPuppetController : public AbstractActorController {
         }
     }
 
+    bool ApplyStandardProperty(unsigned int index, ByteStream& data, unsigned int propLen) override;
     bool ApplyCustomProperty(unsigned int index, ByteStream& data, unsigned int propLen) override;
+    void StepSmoothing();
     void OnPropertiesApplied(u64 changed) override;
 
     void DrawFishingRod(PlayState* play);
@@ -218,6 +221,8 @@ class PlayerPuppetController : public AbstractActorController {
     u8 m_horseStateFlags = 0;
     float m_horseSpeedXZ = 0.0f;
     u8 m_onPlatform = 0;
+    PuppetSmoother m_smooth{};
+    PuppetSmoother m_horseSmooth{};
 
     Actor* m_horse = nullptr;
     Actor* m_boomerang = nullptr;

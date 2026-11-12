@@ -396,8 +396,74 @@ void PlayerPuppetController::DrawSwordQuadDebug(PlayState* play) {
     Collider_DrawPoly(play->state.gfxCtx, &q[1], &q[0], &q[2], 0, 255, 0);
 }
 
+// Position and facing go through the smoother instead of straight onto the actor (see PuppetSmoothing.hpp).
+bool PlayerPuppetController::ApplyStandardProperty(unsigned int index, ByteStream& data, unsigned int propLen) {
+    switch (index) {
+        case PROP_POS_X:
+        case PROP_POS_Y:
+        case PROP_POS_Z: {
+            int axis = (int)(index - PROP_POS_X);
+            f32 value = data.Read<PackedFloat4>().value();
+            m_smooth.SetAxis(axis, value);
+            if (!m_smooth.hasTarget) {
+                // Before the first frame (spawn), place the puppet where it really is
+                (&m_actor->world.pos.x)[axis] = value;
+            }
+            return true;
+        }
+        case PROP_SHAPE_ROT: {
+            m_actor->shape.rot.x = (s16)data.Read<PackedInt2>().value();
+            s16 yaw = (s16)data.Read<PackedInt2>().value();
+            m_actor->shape.rot.z = (s16)data.Read<PackedInt2>().value();
+            m_smooth.SetYaw(yaw);
+            if (!m_smooth.hasTarget) {
+                m_actor->shape.rot.y = yaw;
+            }
+            return true;
+        }
+        default:
+            return AbstractActorController::ApplyStandardProperty(index, data, propLen);
+    }
+}
+
+void PlayerPuppetController::StepSmoothing() {
+    if (!m_smooth.hasTarget) {
+        m_smooth.SeedPosition(m_actor->world.pos.x, m_actor->world.pos.y, m_actor->world.pos.z);
+    }
+    if (!m_horseSmooth.hasTarget) {
+        m_horseSmooth.SeedPosition(m_horsePos.x, m_horsePos.y, m_horsePos.z);
+    }
+    if (CVarGetInteger("gZeldaOnline.SmoothPartners", 1) == 0) {
+        // Old behaviour: exactly the last received position
+        m_smooth.Step();
+        if (m_smooth.hasTarget) {
+            m_actor->world.pos = { m_smooth.target[0], m_smooth.target[1], m_smooth.target[2] };
+        }
+        if (m_smooth.hasYaw) {
+            m_actor->shape.rot.y = m_smooth.targetYaw;
+        }
+        m_horseSmooth.Step();
+        return;
+    }
+    if (m_smooth.Step() || !m_smooth.hasTarget) {
+        // A teleport: start drawing from here
+        m_actor->prevPos = { m_smooth.shown[0], m_smooth.shown[1], m_smooth.shown[2] };
+    }
+    if (m_smooth.hasTarget) {
+        m_actor->world.pos = { m_smooth.shown[0], m_smooth.shown[1], m_smooth.shown[2] };
+    }
+    if (m_smooth.hasYaw) {
+        m_actor->shape.rot.y = m_smooth.shownYaw;
+    }
+    m_horseSmooth.Step();
+    if (m_horseSmooth.hasTarget) {
+        m_horsePos = { m_horseSmooth.shown[0], m_horseSmooth.shown[1], m_horseSmooth.shown[2] };
+    }
+}
+
 void PlayerPuppetController::UpdatePuppet(PlayState* play) {
     auto player = reinterpret_cast<Player*>(m_actor);
+    StepSmoothing();
     if (m_horse != nullptr) {
         auto horse = (EnHorse*)m_horse;
         /* if (m_horseMounted) {
@@ -634,13 +700,16 @@ bool PlayerPuppetController::ApplyCustomProperty(unsigned int index, ByteStream&
             return true;
         case PPROP_HORSE_POS_X:
             m_horsePos.x = data.Read<PackedFloat4>().value();
+            m_horseSmooth.SetAxis(0, m_horsePos.x);
             return true;
         case PPROP_HORSE_POS_Y:
             m_horsePos.y = data.Read<PackedFloat4>().value();
+            m_horseSmooth.SetAxis(1, m_horsePos.y);
             return true;
 
         case PPROP_HORSE_POS_Z:
             m_horsePos.z = data.Read<PackedFloat4>().value();
+            m_horseSmooth.SetAxis(2, m_horsePos.z);
             return true;
         case PPROP_HORSE_ROT_X:
             m_horseRot.x = (s16)(data.Read<PackedInt2>().value());

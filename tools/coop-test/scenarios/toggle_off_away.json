@@ -1,0 +1,101 @@
+{
+  "name": "toggle_off_away",
+  "server": { "host": "127.0.0.1", "port": 21650 },
+  "boot": { "entrance": 187, "age": "child" },
+  "stages": [
+    {
+      "name": "switch_turned_off_while_away_stays_off",
+      "server": "fresh",
+      "server_config": { "dungeonsResetTimer": 0 },
+      "stop_server": true,
+      "server_checks": [
+        { "type": "log_contains", "text": "switched off again", "label": "server dropped the toggled-off switch" }
+      ],
+      "roles": {
+        "A": {
+          "name": "TestA",
+          "steps": [
+            { "op": "wait_play", "timeout_frames": 1800 },
+            { "op": "reset_inventory" },
+            { "op": "connect" },
+            { "op": "wait_until", "cond": "connected", "timeout_frames": 1200 },
+            { "op": "wait_until", "cond": "net_id", "timeout_frames": 1200 },
+            { "op": "warp", "entrance": 238, "scene": 85, "timeout_frames": 1800 },
+            { "op": "wait_until", "cond": "other_players", "n": 1, "timeout_frames": 3600 },
+            { "op": "create_party", "story_coop": true, "story_code": "away-qa-code" },
+            { "op": "wait_until", "cond": "has_party", "timeout_frames": 1200 },
+            { "op": "wait_until", "cond": "story_active", "value": true, "timeout_frames": 1200 },
+            { "op": "invite" },
+            { "op": "wait_until", "cond": "party_size", "n": 2, "timeout_frames": 2400 },
+            { "op": "wait_frames", "n": 100 },
+            { "op": "warp", "entrance": 0, "scene": 0, "timeout_frames": 1800 },
+            { "op": "wait_frames", "n": 150 },
+            { "op": "set_flag", "type": "switch", "flag": 9 },
+            { "op": "wait_frames", "n": 60 },
+            { "op": "observe", "name": "a_on", "flags": [ { "type": "switch", "flag": 9 } ] },
+            { "op": "log", "msg": "switch 9 on, waiting for B to leave the party" },
+            { "op": "wait_until", "cond": "party_size", "n": 1, "timeout_frames": 3600 },
+            { "op": "wait_frames", "n": 60 },
+            { "op": "unset_flag", "type": "switch", "flag": 9 },
+            { "op": "wait_frames", "n": 60 },
+            { "op": "log", "msg": "switch 9 off while B is away, inviting B back" },
+            { "op": "warp", "entrance": 238, "scene": 85, "timeout_frames": 1800 },
+            { "op": "wait_frames", "n": 60 },
+            { "op": "invite" },
+            { "op": "wait_until", "cond": "party_size", "n": 2, "timeout_frames": 2400 },
+            { "op": "wait_frames", "n": 200 },
+            { "op": "warp", "entrance": 0, "scene": 0, "timeout_frames": 1800 },
+            { "op": "wait_frames", "n": 150 },
+            { "op": "observe", "name": "a_after", "flags": [ { "type": "switch", "flag": 9 } ] },
+            { "op": "set_flag", "type": "inf_table", "flag": 460 },
+            { "op": "wait_until", "cond": "flag", "type": "inf_table", "flag": 461, "timeout_frames": 3600 },
+            { "op": "wait_frames", "n": 60 },
+            { "op": "quit", "pass": true }
+          ]
+        },
+        "B": {
+          "name": "TestB",
+          "steps": [
+            { "op": "wait_play", "timeout_frames": 1800 },
+            { "op": "reset_inventory" },
+            { "op": "connect" },
+            { "op": "wait_until", "cond": "connected", "timeout_frames": 1200 },
+            { "op": "wait_until", "cond": "net_id", "timeout_frames": 1200 },
+            { "op": "warp", "entrance": 238, "scene": 85, "timeout_frames": 1800 },
+            { "op": "wait_until", "cond": "other_players", "n": 1, "timeout_frames": 3600 },
+            { "op": "wait_until", "cond": "invite_pending", "timeout_frames": 2400 },
+            { "op": "accept_invite" },
+            { "op": "wait_until", "cond": "has_party", "timeout_frames": 1200 },
+            { "op": "wait_until", "cond": "party_size", "n": 2, "timeout_frames": 1200 },
+            { "op": "wait_frames", "n": 60 },
+            { "op": "warp", "entrance": 0, "scene": 0, "timeout_frames": 1800 },
+            { "op": "wait_until", "cond": "flag", "type": "switch", "flag": 9, "timeout_frames": 2400 },
+            { "op": "observe", "name": "b_on", "flags": [ { "type": "switch", "flag": 9 } ] },
+            { "op": "warp", "entrance": 238, "scene": 85, "timeout_frames": 1800 },
+            { "op": "wait_frames", "n": 60 },
+            { "op": "leave_party" },
+            { "op": "log", "msg": "B left the party with switch 9 on in its save" },
+            { "op": "wait_until", "cond": "invite_pending", "timeout_frames": 3600 },
+            { "op": "accept_invite" },
+            { "op": "wait_until", "cond": "party_size", "n": 2, "timeout_frames": 1200 },
+            { "op": "wait_frames", "n": 150 },
+            { "op": "warp", "entrance": 0, "scene": 0, "timeout_frames": 1800 },
+            { "op": "wait_frames", "n": 150 },
+            { "op": "observe", "name": "b_after", "flags": [ { "type": "switch", "flag": 9 } ] },
+            { "op": "warp", "entrance": 238, "scene": 85, "timeout_frames": 1800 },
+            { "op": "wait_until", "cond": "flag", "type": "inf_table", "flag": 460, "timeout_frames": 3600 },
+            { "op": "set_flag", "type": "inf_table", "flag": 461 },
+            { "op": "wait_frames", "n": 100 },
+            { "op": "quit", "pass": true }
+          ]
+        }
+      },
+      "assertions": [
+        { "type": "each", "obs": "a_on", "path": "flags.0.value", "op": "eq", "value": true, "label": "A turned the Deku Tree switch on", "roles": ["A"] },
+        { "type": "each", "obs": "b_on", "path": "flags.0.value", "op": "eq", "value": true, "label": "B saw it on before leaving", "roles": ["B"] },
+        { "type": "each", "obs": "a_after", "path": "flags.0.value", "op": "eq", "value": false, "label": "B coming back does not turn it on again for A", "roles": ["A"] },
+        { "type": "each", "obs": "b_after", "path": "flags.0.value", "op": "eq", "value": false, "label": "B's own save has it off again", "roles": ["B"] }
+      ]
+    }
+  ]
+}

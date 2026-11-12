@@ -6,6 +6,7 @@
 // the party setting off nothing in this file runs.
 
 #include "ZeldaOnlineClient.hpp"
+#include "ZeldaOnlinePolish.hpp"
 
 #include "soh/OTRGlobals.h"
 #include "soh/SaveManager.h"
@@ -1165,14 +1166,14 @@ void ZeldaOnlineClient::StoryUpdate() {
         // the first snapshot after loading a save or joining that adds something: tell the player what they got
         const bool joinSummary = m_coopJoinArmed;
         const CoopJoinSnapshot beforeJoin = joinSummary ? CoopCaptureJoin() : CoopJoinSnapshot();
+        const StoryProgress before = StoryCapture();
         const bool applied = StoryApply(team);
         const bool listed = applied && joinSummary && CoopDiffJoin(beforeJoin);
         if (listed)
             m_coopJoinArmed = false;
-        // the join summary already says it
-        if (applied && !listed && m_storyNotifyCooldown == 0) {
-            Notification::Emit({ .message = "Party progress received" });
-            m_storyNotifyCooldown = 5 * 20;
+        // the join summary already says it; otherwise "Zelda found the Hookshot", with its icon (ZeldaOnlinePolish.cpp)
+        if (applied && !listed) {
+            CoopPolish::AnnounceProgress(before, StoryCapture());
         }
     }
 }
