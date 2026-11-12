@@ -30,6 +30,9 @@ jobs:
         for d in H J; do cp tools/steamlink/out/OOTSteamLink tools/steamlink/out/libsteam_api.so work/$d/; done
         python3 tools/steamlink/test/stream_test.py --work work
 
+    - name: Co-op Lobby tests (mock Steam)
+      run: python3 tools/steamlink/test/lobby_test.py --work work
+
     - name: Stage package
       run: |
         mkdir -p package

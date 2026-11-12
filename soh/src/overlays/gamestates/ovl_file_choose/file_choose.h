@@ -70,6 +70,11 @@ typedef enum {
     CM_START_RANDOMIZER_SETTINGS_MENU,
     CM_RANDOMIZER_SETTINGS_MENU_TO_QUEST,
     CM_NAME_ENTRY_TO_RANDOMIZER_SETTINGS_MENU,
+    // Co-op screen (soh/Network/ZeldaOnline/ZeldaOnlineLobbyFileSelect.cpp), on the window face of the options menu
+    CM_ROTATE_TO_COOP_MENU,
+    CM_COOP_MENU,
+    CM_START_COOP_MENU,
+    CM_COOP_TO_MAIN,
 } ConfigMode;
 
 typedef enum {

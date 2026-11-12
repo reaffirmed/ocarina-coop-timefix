@@ -30,6 +30,7 @@
 #ifndef _WIN32
 #define _GNU_SOURCE /* pipe2 */
 #endif
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -224,6 +225,76 @@ static int key_get(void)
 #endif
 static bool g_quiet_fail; /* tests: do not wait for a key press on errors */
 
+/* ---------------------------------------------------------------- status file (the game's Co-op Lobby)
+
+   --status-file <path>: the game starts this tool itself (no console window) and follows it through a text file.
+   Every event is one appended line, the newest line of a kind wins:
+     steam <persona name>                         signed in to Steam
+     friends <n>, then n x  friend <lobby> <name>  Steam friends who are hosting (join without a lobby id)
+     ready host <port> <lobby>                    hosting, the game connects to 127.0.0.1:<port>
+     ready join <port> <host name>                joined, the game connects to 127.0.0.1:<port>
+     peer+ <name> / peer- <name>                  a friend connected / left (host)
+     hostgone                                     the host stopped hosting (join)
+     error <text>                                 something failed, the tool exits
+     stopped                                      the tool exited
+   The game asks for things with files next to it: <path>.pick holds the lobby id to join, <path>.stop stops the
+   tool (the server is stopped cleanly so team saves are written). --parent-pid <pid> stops it when the game is gone. */
+static char g_status_path[MAX_PATH];
+static unsigned long g_parent_pid;
+
+static void status(const char *fmt, ...)
+{
+    if (!g_status_path[0]) return;
+    FILE *f = fopen(g_status_path, "a");
+    if (!f) return;
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(f, fmt, ap);
+    va_end(ap);
+    fputc('\n', f);
+    fclose(f);
+}
+
+static bool status_side_file(const char *suffix, char *out, size_t size)
+{
+    char path[MAX_PATH + 16];
+    if (!g_status_path[0]) return false;
+    snprintf(path, sizeof(path), "%s%s", g_status_path, suffix);
+    FILE *f = fopen(path, "r");
+    if (!f) return false;
+    if (out && size) {
+        size_t n = fread(out, 1, size - 1, f);
+        out[n] = 0;
+    }
+    fclose(f);
+    return true;
+}
+
+static bool parent_gone(void)
+{
+    if (!g_parent_pid) return false;
+#ifdef _WIN32
+    static HANDLE parent;
+    if (!parent) parent = OpenProcess(SYNCHRONIZE, FALSE, (DWORD)g_parent_pid);
+    return !parent || WaitForSingleObject(parent, 0) == WAIT_OBJECT_0;
+#else
+    return kill((pid_t)g_parent_pid, 0) != 0 && errno == ESRCH;
+#endif
+}
+
+/* The game asked this tool to stop, or the game is gone. Checked about four times a second. */
+static bool status_stop_requested(void)
+{
+    static DWORD last;
+    static bool stop;
+    if (stop || (!g_status_path[0] && !g_parent_pid)) return stop;
+    DWORD now = GetTickCount();
+    if (now - last < 250) return false;
+    last = now;
+    stop = status_side_file(".stop", NULL, 0) || parent_gone();
+    return stop;
+}
+
 #ifndef _WIN32
 /* Started without a terminal (a Steam shortcut, or a double click): show the error in a desktop dialog. */
 static void error_dialog(const char *msg)
@@ -249,6 +320,7 @@ static void error_dialog(const char *msg)
 static void fail(const char *msg)
 {
     printf("\n%s\n", msg);
+    if (g_status_path[0]) { status("error %s", msg); status("stopped"); exit(1); } /* the game shows it */
 #ifndef _WIN32
     if (!g_console && !g_quiet_fail) { error_dialog(msg); exit(1); }
 #endif
@@ -941,6 +1013,7 @@ static void drop_peer(Peer *p, const char *why)
 {
     if (!p || !p->sid) return;
     printf("%s left (%s).\n", friend_name(p->sid), why);
+    status("peer- %s", friend_name(p->sid));
     close_links_of(p->sid);
     close_session(p->sid);
     memset(p, 0, sizeof(*p));
@@ -954,6 +1027,7 @@ static Peer *add_peer(u64 sid)
         memset(p, 0, sizeof(*p));
         p->sid = sid; p->last_heard = p->last_ping = GetTickCount();
         printf("%s connected through Steam.\n", friend_name(sid));
+        status("peer+ %s", friend_name(sid));
         return p;
     }
     return NULL;
@@ -1034,6 +1108,7 @@ static int run_host(void)
     if (!g_lobby) { stop_server(); fail("Steam did not create a lobby. Check that you are online in Steam."); }
 
     start_game("127.0.0.1", g_port);
+    status("ready host %d %llu", g_port, (unsigned long long)g_lobby);
     printf("\nHosting. Friends join by running OOTSteamLink and choosing Join, or by right-clicking you in\n"
            "the Steam friends list and choosing Join Game (with OOTSteamLink already open on their side).\n"
            "Lobby id: %llu\nKeep this window open while you play. Press Q to stop hosting.\n\n",
@@ -1082,6 +1157,7 @@ static int run_host(void)
         /* no terminal to press Q in (a Steam shortcut, e.g. Steam Deck game mode): closing the game stops hosting */
         if (!g_console && g_game && game_exited()) { printf("The game was closed.\n"); break; }
         if (key_hit()) { int c = key_get(); if (c == 'q' || c == 'Q') break; }
+        if (status_stop_requested()) { printf("Stopped by the game.\n"); break; }
         if (g_stop) break;
         Sleep(1);
     }
@@ -1146,8 +1222,34 @@ static int list_hosting_friends(u64 *lobbies, u64 *owners, int max)
     return n;
 }
 
+/* Started by the game's Co-op Lobby: report the hosting friends whenever they change and wait until the game picks
+   one (<status>.pick), a Steam invite or Join Game arrives, or the game says stop. */
+static void pick_lobby_for_game(void)
+{
+    u64 lobbies[32], owners[32], shown[32];
+    int shown_n = -1;
+    while (!g_join_lobby) {
+        pump(join_cb);
+        int n = list_hosting_friends(lobbies, owners, 32);
+        if (n != shown_n || memcmp(shown, lobbies, sizeof(u64) * n) != 0) {
+            status("friends %d", n);
+            for (int i = 0; i < n; i++) status("friend %llu %s", (unsigned long long)lobbies[i], friend_name(owners[i]));
+            memcpy(shown, lobbies, sizeof(u64) * n);
+            shown_n = n;
+        }
+        char pick[64];
+        if (status_side_file(".pick", pick, sizeof(pick))) {
+            u64 v = strtoull(pick, NULL, 10);
+            if (v) g_join_lobby = v;
+        }
+        if (status_stop_requested() || g_stop) { status("stopped"); exit(0); }
+        Sleep(250);
+    }
+}
+
 static void pick_lobby(void)
 {
+    if (g_status_path[0]) { pick_lobby_for_game(); return; }
     u64 lobbies[32], owners[32];
     int shown = -1;
     printf("Looking for Steam friends who are hosting...\n"
@@ -1239,6 +1341,7 @@ static int run_join(u64 lobby)
     }
     printf("Relay listening on 127.0.0.1:%d\n", port);
     start_game("127.0.0.1", port);
+    status("ready join %d %s", port, friend_name(g_host));
     printf("Relaying 127.0.0.1:%d <-> %s over Steam. Keep this window open. Close the game to stop.\n",
            port, friend_name(g_host));
     g_cb = join_cb;
@@ -1279,6 +1382,7 @@ static int run_join(u64 lobby)
                     last_heard = GetTickCount();
                     if (h->size >= 1 && ((char *)h->data)[0] == 'B') {
                         printf("The host closed the game.\n");
+                        status("hostgone");
                         host_gone = true;
                         close_links_of(g_host);
                     }
@@ -1296,6 +1400,7 @@ static int run_join(u64 lobby)
         }
         if (game_exited()) break;
         if (key_hit()) { int c = key_get(); if (c == 'q' || c == 'Q' || c == 27) break; }
+        if (status_stop_requested()) { printf("Stopped by the game.\n"); break; }
         if (g_stop) break;
         Sleep(1);
     }
@@ -1325,6 +1430,8 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--no-server")) g_no_server = true;
         else if (!strcmp(argv[i], "--no-game") || !strcmp(argv[i], "--no-launch")) g_no_game = true;
         else if (!strcmp(argv[i], "--quiet-errors")) g_quiet_fail = true;
+        else if (!strcmp(argv[i], "--status-file") && i + 1 < argc) snprintf(g_status_path, sizeof(g_status_path), "%s", argv[++i]);
+        else if (!strcmp(argv[i], "--parent-pid") && i + 1 < argc) g_parent_pid = strtoul(argv[++i], NULL, 10);
         else if (!strcmp(argv[i], "+connect_lobby") && i + 1 < argc) { mode = "join"; arg = argv[++i]; }
         else if (!mode) mode = argv[i];
         else if (!arg) arg = argv[i];
@@ -1352,6 +1459,7 @@ int main(int argc, char **argv)
     steam_start();
     relay_config();
     printf("Ocarina of Time Co-op over Steam - signed in as %s\n\n", S.GetPersonaName(g_friends));
+    status("steam %s", S.GetPersonaName(g_friends));
 
     if (!mode && !g_console) fail("Usage: OOTSteamLink" EXE_SUFFIX " [host | join [lobby id]]");
     if (!mode) {
@@ -1369,6 +1477,7 @@ int main(int argc, char **argv)
     else if (!_stricmp(mode, "join")) r = run_join(arg ? strtoull(arg, NULL, 10) : 0);
     else fail("Usage: OOTSteamLink" EXE_SUFFIX " [host | join [lobby id]]");
     printf("Relayed %llu bytes from the game and %llu bytes to the game.\n", g_bytes_up, g_bytes_down);
+    status("stopped");
     S.Shutdown();
 #ifdef _WIN32
     InterlockedExchange(&g_done, 1);
