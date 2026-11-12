@@ -531,7 +531,8 @@ bool ZeldaOnlineClient::CoopGiveBottle(PlayState* play, Player* player, s32 item
         CoopShowNotice("You gave " + name + " " + what + ".");
     }
 
-    Player_UpdateBottleHeld(play, player, emptied, emptied == ITEM_MILK_HALF ? PLAYER_IA_BOTTLE_MILK_HALF : PLAYER_IA_BOTTLE);
+    Player_UpdateBottleHeld(play, player, emptied,
+                            emptied == ITEM_MILK_HALF ? PLAYER_IA_BOTTLE_MILK_HALF : PLAYER_IA_BOTTLE);
     Sfx_PlaySfxCentered(NA_SE_SY_CORRECT_CHIME);
     return true;
 }
@@ -572,8 +573,8 @@ void ZeldaOnlineClient::CoopOnGameOver(PlayState* play) {
 
     Player* player = GET_PLAYER(play);
     Vec3f pos = player != nullptr ? player->actor.world.pos : Vec3f{ 0, 0, 0 };
-    const bool onGround = player != nullptr && (player->actor.bgCheckFlags & 1) &&
-                          !(player->stateFlags1 & PLAYER_STATE1_IN_WATER);
+    const bool onGround =
+        player != nullptr && (player->actor.bgCheckFlags & 1) && !(player->stateFlags1 & PLAYER_STATE1_IN_WATER);
     if (!onGround && m_coopGroundScene == play->sceneNum)
         pos = { m_coopGroundX, m_coopGroundY, m_coopGroundZ };
 
@@ -612,9 +613,7 @@ void ZeldaOnlineClient::CoopLoadMarker() {
         m_coopMarker.rupees = m.value("rupees", 0);
         if (m_coopMarker.scene < 0 || m_coopMarker.rupees <= 0)
             m_coopMarker = CoopMarker();
-    } catch (...) {
-        m_coopMarker = CoopMarker();
-    }
+    } catch (...) { m_coopMarker = CoopMarker(); }
 }
 
 void ZeldaOnlineClient::CoopSaveMarker() {
@@ -641,9 +640,7 @@ void ZeldaOnlineClient::CoopSaveMarker() {
         }
         std::ofstream out(file);
         out << j.dump(2);
-    } catch (const std::exception& e) {
-        SPDLOG_WARN("[ZeldaOnline] could not save the death marker: {}", e.what());
-    }
+    } catch (const std::exception& e) { SPDLOG_WARN("[ZeldaOnline] could not save the death marker: {}", e.what()); }
 }
 
 void ZeldaOnlineClient::CoopUpdateMarker(PlayState* play, Player* player) {
@@ -702,14 +699,13 @@ void ZeldaOnlineClient::CoopUpdateMarker(PlayState* play, Player* player) {
                     return;
             s16 yaw = Math_Vec3f_Yaw(&markerPos, &player->actor.world.pos);
             // a direct spawn: this Dark Link exists only in this player's game
-            m_coopDarkLink = Actor_SpawnDirect(&play->actorCtx, play, ACTOR_EN_TORCH2, markerPos.x, markerPos.y,
-                                               markerPos.z, 0, yaw, 0, markerPos.x, markerPos.y, markerPos.z, 0, yaw,
-                                               0, 0, 0);
+            m_coopDarkLink =
+                Actor_SpawnDirect(&play->actorCtx, play, ACTOR_EN_TORCH2, markerPos.x, markerPos.y, markerPos.z, 0, yaw,
+                                  0, markerPos.x, markerPos.y, markerPos.z, 0, yaw, 0, 0, 0);
             if (m_coopDarkLink != nullptr) {
                 m_coopDarkLinkSpawned = true;
                 if (m_partySettings.darkLinkStrength == 0)
-                    m_coopDarkLink->colChkInfo.health =
-                        (u8)std::max(1, (int)m_coopDarkLink->colChkInfo.health / 2);
+                    m_coopDarkLink->colChkInfo.health = (u8)std::max(1, (int)m_coopDarkLink->colChkInfo.health / 2);
                 CoopShowNotice("Dark Link guards your rupees. Beat him to get them back.");
             }
         }
@@ -875,8 +871,8 @@ void ZeldaOnlineClient::CoopOnSceneTrigger(AbstractActorController* sendingPlaye
                 what = "a green potion";
                 break;
             case COOP_GIVE_MILK:
-                gSaveContext.healthAccumulator = std::min<s16>(gSaveContext.healthCapacity,
-                                                               (s16)(gSaveContext.healthAccumulator + kMilkHealth));
+                gSaveContext.healthAccumulator =
+                    std::min<s16>(gSaveContext.healthCapacity, (s16)(gSaveContext.healthAccumulator + kMilkHealth));
                 what = "milk";
                 break;
             default:
@@ -1050,9 +1046,8 @@ bool ZeldaOnlineClient::CoopDiffJoin(const CoopJoinSnapshot& before) {
                 got.push_back(SohUtils::GetItemName(ITEM_SWORD_KOKIRI + type * 3 + inv));
         }
     }
-    static const char* kUpgradeNames[] = { "Bigger quiver",   "Bigger bomb bag", "Stronger grip", "Better scale",
-                                           "Bigger wallet",   "Bigger seed bag", "More Deku Sticks",
-                                           "More Deku Nuts" };
+    static const char* kUpgradeNames[] = { "Bigger quiver", "Bigger bomb bag", "Stronger grip",    "Better scale",
+                                           "Bigger wallet", "Bigger seed bag", "More Deku Sticks", "More Deku Nuts" };
     for (int upg = 0; upg < 8; upg++) {
         u32 now = (gSaveContext.inventory.upgrades & gUpgradeMasks[upg]) >> gUpgradeShifts[upg];
         u32 was = (before.upgrades & gUpgradeMasks[upg]) >> gUpgradeShifts[upg];
@@ -1211,8 +1206,8 @@ void ZeldaOnlineClient::CoopDrawOverlay(GraphicsContext* gfxCtx) {
     // this player is down
     if (m_coopIsDowned) {
         const int seconds = (m_coopDownedFrames + kFps - 1) / kFps;
-        std::string text = Wrap("You are down. A teammate can revive you: " + std::to_string(seconds) +
-                                "s left. Hold B to give up.");
+        std::string text =
+            Wrap("You are down. A teammate can revive you: " + std::to_string(seconds) + "s left. Hold B to give up.");
         const s16 h = (s16)(LineCount(text) * lineH + 8);
         FillRect(gfxCtx, 8, 136, 304, h, panel);
         DrawScreenText(gfxCtx, text.c_str(), 14, 140, red, small);
@@ -1224,8 +1219,7 @@ void ZeldaOnlineClient::CoopDrawOverlay(GraphicsContext* gfxCtx) {
     }
 
     // the respawn cooldown after a Game Over
-    if (play->gameOverCtx.state == GAMEOVER_DEATH_DELAY_MENU && CoopRespawnCooldownFrames() > 0 &&
-        gGameOverTimer > 0) {
+    if (play->gameOverCtx.state == GAMEOVER_DEATH_DELAY_MENU && CoopRespawnCooldownFrames() > 0 && gGameOverTimer > 0) {
         std::string text = "Respawn in " + std::to_string((gGameOverTimer + kFps - 1) / kFps);
         float w = TextWidth(text, 0.7f);
         DrawScreenText(gfxCtx, text.c_str(), (s16)(160 - w / 2), 150, white, 0.7f);

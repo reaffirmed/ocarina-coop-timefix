@@ -75,10 +75,10 @@ static PartySettings SettingsFromCVars() {
 
 static nlohmann::json SettingsToJson(const PartySettings& s) {
     nlohmann::json j = { { "privateDungeons", s.privateDungeons },     { "extraEnemies", s.extraEnemies },
-             { "extraEnemyWeight", s.extraEnemyWeight },   { "healthMultiplier", s.healthMultiplier },
-             { "enemyHealthWeight", s.enemyHealthWeight }, { "bossHealthWeight", s.bossHealthWeight },
-             { "damageMultiplier", s.damageMultiplier },   { "enemyDamageWeight", s.enemyDamageWeight },
-             { "shareAmmoRupeesHp", s.shareAmmoRupeesHp } };
+                         { "extraEnemyWeight", s.extraEnemyWeight },   { "healthMultiplier", s.healthMultiplier },
+                         { "enemyHealthWeight", s.enemyHealthWeight }, { "bossHealthWeight", s.bossHealthWeight },
+                         { "damageMultiplier", s.damageMultiplier },   { "enemyDamageWeight", s.enemyDamageWeight },
+                         { "shareAmmoRupeesHp", s.shareAmmoRupeesHp } };
     WriteCoopRulesJSON(s, j);
     return j;
 }
@@ -787,8 +787,9 @@ bool CoopLobbyWindow::DrawStorySettings(PartySettings& s) {
         ImGui::Indent();
         int downed = s.downedSeconds >= 45 ? 1 : 0;
         static const char* const kDowned[] = { "30 seconds", "60 seconds" };
-        if (combo("Time to revive", &downed, kDowned, 2, "How long a downed player waits before the Game Over.\n"
-                                                         "Hold B to give up sooner.")) {
+        if (combo("Time to revive", &downed, kDowned, 2,
+                  "How long a downed player waits before the Game Over.\n"
+                  "Hold B to give up sooner.")) {
             s.downedSeconds = downed == 1 ? 60 : 30;
             changed = true;
         }

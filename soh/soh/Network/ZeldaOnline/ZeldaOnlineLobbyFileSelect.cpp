@@ -88,14 +88,14 @@ enum RowId {
     ROW_DARK_LINK,
     ROW_RESPAWN,
     ROW_READY_CHECK,
-    ROW_FRIEND = 2000, // + index
+    ROW_FRIEND = 2000,    // + index
     ROW_COPY_SLOT = 3000, // + solo file
 };
 
 constexpr float kTextScale = 0.8f;
 
 void AddCoopRuleRows(const PartySettings& s, std::vector<Row>& rows);
-}
+} // namespace
 static std::string Fit(const std::string& text, float width, float scale);
 namespace {
 std::string SettingHelp(int id);
@@ -108,9 +108,9 @@ struct CoopScreen {
     bool settingsLive = false; // opened while hosting: changes apply right away, no "Start hosting" row
     int16_t alpha = 0;
     int arrowAnim = 0;
-    int copySlot = -1;      // the solo file picked to copy into the co-op file
-    std::string notice;     // a line shown on the session page after a copy
-    std::string nameEdit;   // the name being typed on the name page
+    int copySlot = -1;    // the solo file picked to copy into the co-op file
+    std::string notice;   // a line shown on the session page after a copy
+    std::string nameEdit; // the name being typed on the name page
     int nameCol = 0, nameRow = 0;
 };
 CoopScreen sScreen;
@@ -120,7 +120,7 @@ constexpr const char* kModernCVar = "gZeldaOnline.Lobby.ModernLayout";
 int RowsOnScreen() {
     if (CVarGetInteger(kModernCVar, 0) == 0)
         return sScreen.page == Page::Settings ? 5 : 6; // the settings keep two lines for their help
-    return sScreen.page == Page::Settings ? 6 : 5; // the settings panel ends above the button legend
+    return sScreen.page == Page::Settings ? 6 : 5;     // the settings panel ends above the button legend
 }
 
 CoopLobbyWindow* Lobby() {
@@ -438,8 +438,7 @@ void AddCoopRuleRows(const PartySettings& s, std::vector<Row>& rows) {
         rows.push_back({ "  Rupees lost", RupeesLostText(s.rupeesLost), true, ROW_RUPEES_LOST });
     if (s.deathPenalty == DEATH_PENALTY_DARK_LINK)
         rows.push_back({ "  Dark Link", s.darkLinkStrength ? "Water Temple" : "Weaker", true, ROW_DARK_LINK });
-    rows.push_back({ "Respawn wait",
-                     s.respawnCooldown >= 10 ? "10 s" : (s.respawnCooldown >= 5 ? "5 s" : "None"), true,
+    rows.push_back({ "Respawn wait", s.respawnCooldown >= 10 ? "10 s" : (s.respawnCooldown >= 5 ? "5 s" : "None"), true,
                      ROW_RESPAWN });
     rows.push_back({ "Ready check", s.readyCheck ? "On" : "Off", true, ROW_READY_CHECK });
 }
@@ -848,7 +847,8 @@ void CopyPicked() {
     CoopLobbyWindow* lobby = Lobby();
     std::string error;
     if (lobby->CopySoloFile(sScreen.copySlot, error)) {
-        sScreen.notice = "File " + std::to_string(sScreen.copySlot + 1) + " copied. Choose Continue co-op file to play.";
+        sScreen.notice =
+            "File " + std::to_string(sScreen.copySlot + 1) + " copied. Choose Continue co-op file to play.";
         GoTo(Page::Session, 0);
     } else {
         PlaySfx(NA_SE_SY_FSEL_ERROR);
@@ -1530,8 +1530,8 @@ static void DrawNamePage(FileChooseContext* ctx, bool modern) {
         shown += blink ? "_" : " ";
     const float nameScale = 0.85f;
     DrawLobbyRect(ctx, gx, top + (modern ? 14 : 0), gridW, 15, 0, 0, 0, 110);
-    TextAlpha(ctx, shown, 160 - (int)(TextWidth(sScreen.nameEdit, nameScale) / 2.0f), top + (modern ? 15 : 1), 255,
-              255, 255, nameScale);
+    TextAlpha(ctx, shown, 160 - (int)(TextWidth(sScreen.nameEdit, nameScale) / 2.0f), top + (modern ? 15 : 1), 255, 255,
+              255, nameScale);
     char count[16];
     std::snprintf(count, sizeof(count), "%d/%d", (int)sScreen.nameEdit.size(), kNameMax);
     TextAlpha(ctx, count, gx + gridW - (int)TextWidth(count, 0.55f) - 2, top + (modern ? 18 : 4), 150, 160, 190, 0.55f);
@@ -1546,8 +1546,7 @@ static void DrawNamePage(FileChooseContext* ctx, bool modern) {
             if (selected)
                 DrawLobbyRect(ctx, x - 1, y - 1, cell, cell, 100, 150, 255, 160);
             const std::string ch(1, kNameGrid[r][c]);
-            TextAlpha(ctx, ch, x + (cell - (int)TextWidth(ch, 0.75f)) / 2 - 1, y, 255, 255, selected ? 80 : 255,
-                      0.75f);
+            TextAlpha(ctx, ch, x + (cell - (int)TextWidth(ch, 0.75f)) / 2 - 1, y, 255, 255, selected ? 80 : 255, 0.75f);
         }
     }
     // Space / Delete / OK
@@ -1557,9 +1556,10 @@ static void DrawNamePage(FileChooseContext* ctx, bool modern) {
     for (int i = 0; i < 3; i++) {
         const bool selected = sScreen.nameRow == kNameActionRow && sScreen.nameCol == i;
         const int x = gx + i * aw;
-        DrawLobbyRect(ctx, x + 2, ay - 1, aw - 4, 13, selected ? 100 : 60, selected ? 150 : 90, 255, selected ? 170 : 90);
-        TextAlpha(ctx, kActions[i], x + (aw - (int)TextWidth(kActions[i], 0.7f)) / 2, ay, 255, 255,
-                  selected ? 80 : 255, 0.7f);
+        DrawLobbyRect(ctx, x + 2, ay - 1, aw - 4, 13, selected ? 100 : 60, selected ? 150 : 90, 255,
+                      selected ? 170 : 90);
+        TextAlpha(ctx, kActions[i], x + (aw - (int)TextWidth(kActions[i], 0.7f)) / 2, ay, 255, 255, selected ? 80 : 255,
+                  0.7f);
     }
     const std::string help = "A: type   B: delete   START: save";
     TextAlpha(ctx, help, 160 - (int)(TextWidth(help, 0.6f) / 2.0f), ay + 18, 170, 180, 200, 0.6f);

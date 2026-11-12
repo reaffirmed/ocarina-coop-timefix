@@ -18,7 +18,8 @@ python tools/coop-test/run.py \
     --server <path to OOTServer.exe> \
     --work <scratch folder, outside the repo> \
     --rom <path to oot.z64>          (or --o2r <existing oot.o2r>) \
-    [--scenario tools/coop-test/scenarios/smoke.json] [--timeout 240] [--port 21650] [--keep]
+    [--scenario tools/coop-test/scenarios/smoke.json] [--timeout 240] [--port 21650] [--keep] \
+    [--window 960x720] [--displays :95,:96]   (Linux: one X display per client, to record each one)
 ```
 
 Each option also has an environment variable: `SOH_BUILD_DIR`, `OOT_SERVER_EXE`, `SOH_TEST_WORK`, `SOH_TEST_ROM`,

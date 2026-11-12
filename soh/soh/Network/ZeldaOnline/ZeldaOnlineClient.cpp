@@ -85,9 +85,10 @@ void DrawScreenText(GraphicsContext* gfxCtx, const char* text, s16 x, s16 y, Col
     }
 
     std::string processed = text;
-    processed.erase(std::remove_if(processed.begin(), processed.end(),
-                                   [](const char& c) { return (uint8_t)c > 172 || (c < ' ' && c != '\0' && c != '\n'); }),
-                    processed.end());
+    processed.erase(
+        std::remove_if(processed.begin(), processed.end(),
+                       [](const char& c) { return (uint8_t)c > 172 || (c < ' ' && c != '\0' && c != '\n'); }),
+        processed.end());
 
     if (processed.empty()) {
         return;
@@ -2058,9 +2059,10 @@ void ZeldaOnlineClient::DrawOverlay(GraphicsContext* gfxCtx) {
     if (m_storyHold)
         DrawScreenText(gfxCtx, StoryHoldText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
     else if (m_storyWarpHold || m_storyWarpVoting)
-        DrawScreenText(gfxCtx, ((m_storyWarpHold && m_coopReadyHold) || (!m_storyWarpHold && m_coopReadyVote))
-                                   ? CoopReadyText().c_str()
-                                   : StoryWarpText().c_str(),
+        DrawScreenText(gfxCtx,
+                       ((m_storyWarpHold && m_coopReadyHold) || (!m_storyWarpHold && m_coopReadyVote))
+                           ? CoopReadyText().c_str()
+                           : StoryWarpText().c_str(),
                        12, 170, { 255, 255, 255, 255 }, 0.45f);
     else if (m_storyCsHasPending && m_storyCsPromptFrames > 0)
         DrawScreenText(gfxCtx, StoryCsPromptText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);

@@ -727,7 +727,8 @@ bool PlayerPuppetController::ApplyCustomProperty(unsigned int index, ByteStream&
             rot.z = (s16)(data.Read<PackedInt2>().value());
             bool pvp = data.Read<PackedUInt1>().value();
 
-            bool pvpActive = pvp && ZeldaOnlineClient::Instance != nullptr && ZeldaOnlineClient::Instance->HitsTeammates();
+            bool pvpActive =
+                pvp && ZeldaOnlineClient::Instance != nullptr && ZeldaOnlineClient::Instance->HitsTeammates();
 
             if (m_boomerang == nullptr) {
 

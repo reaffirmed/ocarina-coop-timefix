@@ -221,20 +221,20 @@ class ZeldaOnlineClient : public ZNetworking {
         int quiet = 0; // frames since the last "down" message
     };
     std::unordered_map<uint32_t, CoopDownedMate> m_coopDowned; // teammates down in this scene, by network id
-    bool m_coopIsDowned = false;      // this player lies down and waits for a revive
-    int m_coopDownedFrames = 0;       // frames left before the Game Over
-    int m_coopGiveUpFrames = 0;       // B held
-    int m_coopAloneFrames = 0;        // no teammate left who could help
+    bool m_coopIsDowned = false;                               // this player lies down and waits for a revive
+    int m_coopDownedFrames = 0;                                // frames left before the Game Over
+    int m_coopGiveUpFrames = 0;                                // B held
+    int m_coopAloneFrames = 0;                                 // no teammate left who could help
     int m_coopFrame = 0;
-    bool m_coopFfHit = false;         // the current hit is friendly fire: the party damage multiplier stays out of it
-    std::string m_coopNotice;         // a short message at the bottom of the screen
+    bool m_coopFfHit = false; // the current hit is friendly fire: the party damage multiplier stays out of it
+    std::string m_coopNotice; // a short message at the bottom of the screen
     int m_coopNoticeFrames = 0;
-    std::string m_coopHint;           // what the player can do right now (revive, give a bottle), rebuilt every frame
-    bool m_coopReadySeen = false;     // the current transition was already looked at
-    bool m_coopReadyHold = false;     // this player's held transition is a ready check
-    bool m_coopReadyVote = false;     // the vote asked here is another member's ready check
+    std::string m_coopHint;       // what the player can do right now (revive, give a bottle), rebuilt every frame
+    bool m_coopReadySeen = false; // the current transition was already looked at
+    bool m_coopReadyHold = false; // this player's held transition is a ready check
+    bool m_coopReadyVote = false; // the vote asked here is another member's ready check
     bool m_coopReadyWasVoting = false;
-    int m_coopReadyPass = 0;          // a ready check just went ahead: walking in after it does not ask again
+    int m_coopReadyPass = 0; // a ready check just went ahead: walking in after it does not ask again
     struct CoopMarker {
         bool has = false;
         int scene = -1;
@@ -243,8 +243,8 @@ class ZeldaOnlineClient : public ZNetworking {
         int rupees = 0;
     };
     CoopMarker m_coopMarker;
-    std::string m_coopMarkerKey;      // which save the marker belongs to (one marker per save)
-    Actor* m_coopDarkLink = nullptr;  // the Dark Link guarding the marker (only in this game)
+    std::string m_coopMarkerKey;     // which save the marker belongs to (one marker per save)
+    Actor* m_coopDarkLink = nullptr; // the Dark Link guarding the marker (only in this game)
     bool m_coopDarkLinkSpawned = false;
     float m_coopGroundX = 0.0f, m_coopGroundY = 0.0f, m_coopGroundZ = 0.0f;
     int m_coopGroundScene = -1;
@@ -262,7 +262,7 @@ class ZeldaOnlineClient : public ZNetworking {
     };
     bool m_coopJoinArmed = false;
     int m_coopJoinArmedFrames = 0;
-    uint32_t m_coopJoinParty = 0;     // the party the join summary was last armed for
+    uint32_t m_coopJoinParty = 0; // the party the join summary was last armed for
     std::vector<std::string> m_coopJoinList;
     int m_coopJoinFrames = 0;
 
@@ -372,7 +372,6 @@ class ZeldaOnlineClient : public ZNetworking {
     CoopJoinSnapshot CoopCaptureJoin() const;
     bool CoopDiffJoin(const CoopJoinSnapshot& before); // true when something was listed
 
-
   public:
     static ZeldaOnlineClient* Instance;
 
@@ -461,7 +460,6 @@ class ZeldaOnlineClient : public ZNetworking {
                 return false;
         }
     }
-
 
     void SetNickname(const std::string& name);
     int MyNetworkID() const {

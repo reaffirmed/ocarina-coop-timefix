@@ -22,15 +22,15 @@ namespace ZeldaOnline {
 
         // Co-op rules (ZeldaOnlineCoopRules.cpp). Every one is off by default, so a party that never sets them plays
         // exactly as before. They only take effect while Story Co-op is on.
-        int friendlyFire = 0;     // FRIENDLY_FIRE_*: teammates' swords, arrows, seeds and boomerangs
-        int deathPenalty = 0;     // DEATH_PENALTY_*: what a Game Over leaves behind
-        int rupeesLost = 2;       // RUPEES_LOST_*: the share of rupees left in the death marker
-        int darkLinkStrength = 0; // 0 weaker (less health), 1 as strong as in the Water Temple
-        bool songRevive = false;  // a teammate plays Zelda's Lullaby next to a downed player
+        int friendlyFire = 0;      // FRIENDLY_FIRE_*: teammates' swords, arrows, seeds and boomerangs
+        int deathPenalty = 0;      // DEATH_PENALTY_*: what a Game Over leaves behind
+        int rupeesLost = 2;        // RUPEES_LOST_*: the share of rupees left in the death marker
+        int darkLinkStrength = 0;  // 0 weaker (less health), 1 as strong as in the Water Temple
+        bool songRevive = false;   // a teammate plays Zelda's Lullaby next to a downed player
         bool bottleRevive = false; // a teammate uses a fairy, potion or milk on a downed or hurt player
-        int downedSeconds = 30;   // how long a downed player waits for a revive (30 or 60)
-        int respawnCooldown = 0;  // seconds before the Game Over menu after a death (0, 5 or 10)
-        bool readyCheck = false;  // wait for the others at dungeon entrances and boss doors
+        int downedSeconds = 30;    // how long a downed player waits for a revive (30 or 60)
+        int respawnCooldown = 0;   // seconds before the Game Over menu after a death (0, 5 or 10)
+        bool readyCheck = false;   // wait for the others at dungeon entrances and boss doors
 
         bool DownedEnabled() const {
             return songRevive || bottleRevive;
