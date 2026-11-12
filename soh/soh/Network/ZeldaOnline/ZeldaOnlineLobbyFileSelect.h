@@ -10,6 +10,10 @@ struct FileChooseContext;
 
 // Main menu: R opens the Co-op screen. Returns 1 when it did (the rest of the main menu update is skipped).
 int CoopLobby_FileSelectCheckOpen(struct FileChooseContext* fileChooseContext);
+// Main menu: 1 when the lobby is in a session and the solo file under the cursor must not be played online.
+int CoopLobby_BlockSoloFile(struct FileChooseContext* fileChooseContext);
+// Starts the co-op file (z_file_choose.c), creating it first with `createNew`.
+void FileChoose_StartCoopFile(struct GameState* gameState, int createNew, const char* name);
 // Main menu: the "R: Co-op" prompt, with what the lobby is doing.
 void CoopLobby_FileSelectDrawPrompt(struct FileChooseContext* fileChooseContext);
 

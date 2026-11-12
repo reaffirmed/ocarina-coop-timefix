@@ -16,6 +16,9 @@ void GameOver_FadeInLights(PlayState* play) {
     }
 }
 
+void ZeldaOnline_OnGameOver(PlayState* play); // ZeldaOnlineCoopRules.cpp
+s16 ZeldaOnline_RespawnCooldownFrames(void);
+
 // This variable cannot be moved into this file as all of z_message_PAL rodata is in the way
 extern s16 gGameOverTimer;
 
@@ -81,7 +84,9 @@ void GameOver_Update(PlayState* play) {
                 gSaveContext.unk_13EC = 0;
 
             Environment_InitGameOverLights(play);
-            gGameOverTimer = 20;
+            // SOH [ZeldaOnline] co-op: the death marker keeps the lost rupees, the respawn cooldown waits longer
+            ZeldaOnline_OnGameOver(play);
+            gGameOverTimer = 20 + ZeldaOnline_RespawnCooldownFrames();
             v90 = VREG(90);
             v91 = VREG(91);
             v92 = VREG(92);

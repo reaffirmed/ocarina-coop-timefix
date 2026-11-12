@@ -187,7 +187,7 @@ void ZeldaOnlineClient::RegisterActorHooks(bool enabled) {
         p << PackedInt2(arrow->actor.params);
         p << PackedFloat4(arrow->actor.speedXZ);
         p << PackedFloat4(arrow->actor.velocity.y);
-        p << PackedUInt1(CVarGetInteger("gZeldaOnline.Pvp", 0));
+        p << PackedUInt1(HitsTeammates() ? 1u : 0u);
         SendSceneTrigger("arrow", p);
     });
 
@@ -215,7 +215,7 @@ void ZeldaOnlineClient::RegisterActorHooks(bool enabled) {
         p << PackedInt2(arrow->actor.params);
         p << PackedFloat4(arrow->actor.speedXZ);
         p << PackedFloat4(arrow->actor.velocity.y);
-        p << PackedUInt1(CVarGetInteger("gZeldaOnline.Pvp", 0));
+        p << PackedUInt1(HitsTeammates() ? 1u : 0u);
         SendSceneTrigger("arrow", p);
     });
 

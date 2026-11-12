@@ -167,7 +167,7 @@ static Actor* FindLocalHorse(Player* player) {
 
 void PlayerPuppetController::BuildLocalPlayerProperties(Player* player, const std::string& nickName,
                                                         ByteStream& out) {
-    bool pvpEnabled = CVarGetInteger("gZeldaOnline.Pvp", 0);
+    bool pvpEnabled = ZeldaOnlineClient::Instance != nullptr && ZeldaOnlineClient::Instance->HitsTeammates();
 
     Actor* horseActor = FindLocalHorse(player);
     PackProperty(PROP_POS_X, PackedFloat4(player->actor.world.pos.x), out);
@@ -498,7 +498,7 @@ void PlayerPuppetController::KillHookshot() {
 }
 
 void PlayerPuppetController::UpdateSwordHitbox(PlayState* play) {
-    if (CVarGetInteger("gZeldaOnline.Pvp", 0)) {
+    if (ZeldaOnlineClient::Instance != nullptr && ZeldaOnlineClient::Instance->HitsTeammates()) {
         if (!m_hitting) {
             if (m_swordQuad.base.actor != nullptr) {
                 Collider_ResetQuadAT(play, &m_swordQuad.base);
@@ -727,7 +727,8 @@ bool PlayerPuppetController::ApplyCustomProperty(unsigned int index, ByteStream&
             rot.z = (s16)(data.Read<PackedInt2>().value());
             bool pvp = data.Read<PackedUInt1>().value();
 
-            bool pvpActive = pvp && CVarGetInteger("gZeldaOnline.Pvp", 0) != 0;
+            bool pvpActive =
+                pvp && ZeldaOnlineClient::Instance != nullptr && ZeldaOnlineClient::Instance->HitsTeammates();
 
             if (m_boomerang == nullptr) {
 

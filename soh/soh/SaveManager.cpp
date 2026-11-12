@@ -54,11 +54,20 @@ void SaveManager::ReadSaveFile(std::filesystem::path savePath, uintptr_t addr, v
 
 std::filesystem::path SaveManager::GetFileName(int fileNum) {
     const std::filesystem::path sSavePath(Ship::Context::GetPathRelativeToAppDirectory("Save"));
+    if (fileNum == CoopFileNum) {
+        // never a slot file, even when no co-op file is set
+        return coopFilePath.empty() ? sSavePath / "coop" / "none.sav" : coopFilePath;
+    }
     return sSavePath / ("file" + std::to_string(fileNum + 1) + ".sav");
 }
 
 std::filesystem::path SaveManager::GetFileTempName(int fileNum) {
     const std::filesystem::path sSavePath(Ship::Context::GetPathRelativeToAppDirectory("Save"));
+    if (fileNum == CoopFileNum) {
+        std::filesystem::path temp = GetFileName(fileNum);
+        temp += ".temp";
+        return temp;
+    }
     return sSavePath / ("file" + std::to_string(fileNum + 1) + ".temp");
 }
 
@@ -1361,6 +1370,28 @@ void SaveManager::LoadFile(int fileNum) {
                                                              "The file has been renamed to prevent further issues.");
     }
     saveMtx.unlock();
+}
+
+void SaveManager::SetCoopFile(const std::filesystem::path& path) {
+    ThreadPoolWait();
+    saveMtx.lock();
+    coopFilePath = path;
+    saveMtx.unlock();
+    fileMetaInfo[CoopFileNum].valid = false;
+}
+
+bool SaveManager::LoadCoopMeta() {
+    fileMetaInfo[CoopFileNum].valid = false;
+    if (coopFilePath.empty() || !SaveFile_Exist(CoopFileNum)) {
+        return false;
+    }
+    try {
+        StartupCheckAndInitMeta(CoopFileNum);
+    } catch (const std::exception& e) {
+        SPDLOG_ERROR("Co-op file {} could not be read: {}", coopFilePath.string(), e.what());
+        fileMetaInfo[CoopFileNum].valid = false;
+    }
+    return fileMetaInfo[CoopFileNum].valid;
 }
 
 void SaveManager::ThreadPoolWait() {

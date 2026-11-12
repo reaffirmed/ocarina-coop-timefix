@@ -472,7 +472,7 @@ void ItemTrackerOnFrame() {
 }
 
 bool IsValidSaveFile() {
-    bool validSave = gSaveContext.fileNum >= 0 && gSaveContext.fileNum <= 2;
+    bool validSave = gSaveContext.fileNum >= 0 && gSaveContext.fileNum <= 3; // 3: a co-op playthrough's file
     return validSave;
 }
 
