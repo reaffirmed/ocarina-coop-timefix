@@ -1,4 +1,5 @@
 #include "ZeldaOnlineClient.hpp"
+#include "LiveMenus.h"
 #include <ship/window/Window.h>
 #include <ship/Context.h>
 #include "soh/Enhancements/cosmetics/cosmeticsTypes.h"
@@ -2661,7 +2662,14 @@ void ZeldaOnlineClient::OnGameFrameUpdate() {
         }
     }
 
-    u8 simulationPaused = ((gPlayState->pauseCtx.state != 0) || (localPlayer->stateFlags1 & (PLAYER_STATE1_TALKING | PLAYER_STATE1_DEAD | PLAYER_STATE1_IN_ITEM_CS))) ? 1 : 0;
+    // A live pause menu or ocarina (LiveMenus.h) keeps the local world running, so it does not count as paused and
+    // keeps leadership of its actors. The ocarina sets PLAYER_STATE1_IN_ITEM_CS, which otherwise freezes actors.
+    bool menuFreezesWorld = (gPlayState->pauseCtx.state != 0) && !gZeldaOnlineLivePause;
+    u32 freezingStates = PLAYER_STATE1_TALKING | PLAYER_STATE1_DEAD | PLAYER_STATE1_IN_ITEM_CS;
+    if (ZeldaOnline_LiveOcarina()) {
+        freezingStates &= ~PLAYER_STATE1_IN_ITEM_CS;
+    }
+    u8 simulationPaused = (menuFreezesWorld || (localPlayer->stateFlags1 & freezingStates)) ? 1 : 0;
 
     if (simulationPaused != m_wasSimulationPaused) {
         WritePacket(newPacket(CLIENT_PACKET_SET_PAUSE_STATE) << PackedUInt1(simulationPaused));
@@ -2674,7 +2682,7 @@ void ZeldaOnlineClient::OnGameFrameUpdate() {
 
         for (auto& entry : m_networkedActors) {
             AbstractActorController* c = entry.second;
-            if (!c->IsPlayer() && c->IsLeader() && ((gPlayState->pauseCtx.state != 0) || c->CanRelinquishLeadership())) {
+            if (!c->IsPlayer() && c->IsLeader() && (menuFreezesWorld || c->CanRelinquishLeadership())) {
                 release << PackedUInt2((unsigned int)(c->NetworkID()));
                 count++;
                 c->SetLeader(false);
@@ -3390,6 +3398,19 @@ extern "C" s32 ZeldaOnline_ScaleEnemyDamage(s32 healthChange) {
     if (client == nullptr || !client->isConnected)
         return healthChange;
     return client->ScaleEnemyDamage(healthChange);
+}
+
+extern "C" uint8_t ZeldaOnline_LiveMenusEnabled(void) {
+    auto* client = ZeldaOnline::ZeldaOnlineClient::Instance;
+    return client != nullptr && client->isConnected && CVarGetInteger("gZeldaOnline.LiveMenus", 1) != 0;
+}
+
+extern "C" uint8_t ZeldaOnline_LiveOcarina(void) {
+    if (gPlayState == nullptr || !ZeldaOnline_LiveMenusEnabled()) {
+        return 0;
+    }
+    Player* player = GET_PLAYER(gPlayState);
+    return player != nullptr && (player->stateFlags2 & PLAYER_STATE2_OCARINA_PLAYING) != 0;
 }
 
 extern "C" const char* ZeldaOnline_LocalSkinName() {

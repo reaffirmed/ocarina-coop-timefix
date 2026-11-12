@@ -1,6 +1,7 @@
 #include "global.h"
 #include <assert.h>
 #include "soh/OTRGlobals.h"
+#include "soh/Network/ZeldaOnline/LiveMenus.h"
 
 Gfx sSetupDL[SETUPDL_MAX][6] = {
     {
@@ -1597,7 +1598,8 @@ void Gfx_SetupFrame(GraphicsContext* gfxCtx, u8 r, u8 g, u8 b) {
     gDPSetDepthImage(POLY_XLU_DISP++, gZBuffer);
     gDPSetDepthImage(OVERLAY_DISP++, gZBuffer);
 
-    if ((R_PAUSE_MENU_MODE < 2) && (gTrnsnUnkState < 2)) {
+    // SOH [ZeldaOnline] Under a live pause menu the world is drawn every frame, so the frame is cleared as usual
+    if (((R_PAUSE_MENU_MODE < 2) || gZeldaOnlineLivePause) && (gTrnsnUnkState < 2)) {
         s32 letterboxSize = ShrinkWindow_GetCurrentVal(); // Upstream TODO: Letterbox
 
         if (HREG(80) == 16) {

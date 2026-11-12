@@ -40,6 +40,7 @@ Steam link (mock Steam DLL): `python tools/steamlink/test/stream_test.py --work 
 | single_player (no server) | pass | 7/7 |
 | cutscenes (area intro together, scene cutscene together, member elsewhere keeps the intro, trigger drops mid-cutscene, Story Co-op off) | pass | 39/39 |
 | npc_shield (gear loss per player, key NPC dialogue shown to the party, Story Co-op off) | pass | 37/37 |
+| live_menus (pause menu and ocarina keep the world running online, Link stands still in the menu, death closes it, setting off pauses as before). Run on Linux (soh.elf, Xvfb, software OpenGL) with the runner's Windows-only bits swapped out | pass | 20/20 (first run crashed in KaleidoScope_UpdateCursorSize, fixed) |
 | steamlink stream_test (mock) | pass | 10/10 |
 | steamlink e2e_test (mock, real server, 2 clients) | pass | smoke 32/32 |
 | steamlink launch_test | pass | game started with OOT_SERVER, player authenticated |
@@ -55,5 +56,7 @@ Steam link (mock Steam DLL): `python tools/steamlink/test/stream_test.py --work 
 6. Upstream bug: the client scene-flag UNSET packet omitted scene key and room, so the server dropped every unset as malformed. Fixed (6ae25297d).
 7. Uncaught filesystem_error on save temp-file remove or rename (Windows file lock) killed the game from the worker thread. Now retries, then logs. Fixed (f00334bd9).
 8. Steamlink e2e and launch tests failed with error 267 on forward-slash server paths. Fixed in the test tools (a36de4e3b).
+
+9. A live pause menu crashed the game as it opened (KaleidoScope_UpdateCursorSize on a NULL vertex buffer). Link updating and drawing under the menu called KaleidoScopeCall_LoadPlayer, which marked the menu overlay unloaded, so KaleidoScopeCall_Draw never drew the menu. The swap is bookkeeping only in SoH and is now skipped while a live menu is open. Fixed (live_menus).
 
 Test-only flaws fixed along the way: empty inventory slot reads 255 not 0; bow ammo 30 matched the default; corruption helper XOR repaired already-corrupt files; title-screen wait assumed no world; enemy-kill assertion gave false failures because Stalchildren respawn (now dense sampling).
