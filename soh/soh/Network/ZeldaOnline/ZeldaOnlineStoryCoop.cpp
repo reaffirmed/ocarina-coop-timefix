@@ -40,6 +40,16 @@ namespace {
 
 using namespace ZeldaOnline;
 
+// CLIENT_PACKET_STORY_WARP_VOTE actions (same values as Party::STORY_WARP_* on the server)
+const uint8_t STORY_WARP_WITHDRAW = 0;
+const uint8_t STORY_WARP_HOLD = 1;
+const uint8_t STORY_WARP_READY = 2;
+const uint8_t STORY_WARP_GO_NOW = 3;
+// a held warp goes ahead on its own when the server says nothing for this long (an older server ignores the vote)
+const int STORY_WARP_SILENT_FRAMES = 60;
+// after saying ready for a warp, its cutscene starts here without the join countdown
+const int STORY_WARP_JOIN_FRAMES = 200;
+
 // The pedestal grab leaves Link frozen in a cutscene-like action until the sequence starts (the action waits for the
 // cutscene, the carry flag is set and the cutscene sword may be in his hand). When the vote is cancelled or fails he
 // has to be handed back to normal control. Other state can have changed while he waited (a hit replaces the action and
@@ -409,6 +419,8 @@ void ZeldaOnlineClient::StoryRefreshState() {
         StoryReleaseHold(true);
         m_storyApprovedFrames = 0;
         m_storyMoveEra = -1;
+        StoryEndWarpHold(true);
+        StoryEndWarpVote();
         if (m_storyDlgFollowing)
             StoryReleaseDialogue();
         m_storyDlgSpeaking = false;
@@ -1105,6 +1117,8 @@ void ZeldaOnlineClient::StoryUpdate() {
         m_storySendCooldown--;
     if (m_storyNotifyCooldown > 0)
         m_storyNotifyCooldown--;
+    if (m_storyWarpJoinFrames > 0)
+        m_storyWarpJoinFrames--;
 
     // time travel vote: B withdraws, an approval that nobody consumed expires
     if (m_storyHold && (gPlayState->state.input[0].press.button & BTN_B)) {
@@ -1114,6 +1128,7 @@ void ZeldaOnlineClient::StoryUpdate() {
     if (m_storyApprovedFrames > 0 && --m_storyApprovedFrames == 0)
         StoryRestorePlayer();
     StoryMoveToEra();
+    StoryWatchWarp();
     StoryWatchCutscenes();
     StoryWatchDialogue();
 
@@ -1359,7 +1374,18 @@ void ZeldaOnlineClient::StoryOnSceneInit() {
         m_storyMissing.clear();
     }
     m_storyApprovedFrames = 0;
+    // a held warp never survives a scene change (a void out or a game over got there first)
+    if (m_storyWarpHold) {
+        WritePacket(newPacket(CLIENT_PACKET_STORY_WARP_VOTE)
+                    << PackedUInt1(STORY_WARP_WITHDRAW) << PackedUInt2(0u) << PackedUInt2(0u));
+        m_storyWarpHold = false;
+    }
+    // the player of the old scene is gone, so is any cutscene flag this client put on it
+    m_storyWarpFroze = false;
+    StoryEndWarpVote();
 }
+
+static std::string StoryWrapText(const std::string& text);
 
 std::string ZeldaOnlineClient::StoryHoldText() const {
     std::string text = "Waiting for the others (" + std::to_string(m_storyVoted) + "/" + std::to_string(m_storyTotal) + ")";
@@ -1373,8 +1399,11 @@ std::string ZeldaOnlineClient::StoryHoldText() const {
         }
     }
     text += ". Press B to cancel.";
+    return StoryWrapText(text);
+}
 
-    // wrap on spaces to fit the screen
+// Wraps on spaces to fit the screen.
+static std::string StoryWrapText(const std::string& text) {
     const size_t maxLine = 44;
     std::string wrapped;
     size_t lineLen = 0;
@@ -1485,6 +1514,244 @@ void ZeldaOnlineClient::StoryMoveToEra() {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Warp vote: scene cutscene transitions wait until the party in the scene is ready
+// ---------------------------------------------------------------------------------------------------------------
+//
+// A transition into a scene's cutscene layer (a blue warp, the Chamber of Sages, Kakariko burning) takes every member
+// in the scene along (see the cutscenes below), so it waits for them first, like the Master Sword pedestal does. The
+// game asks for the transition by setting transitionTrigger during the frame; this runs after the frame, before the
+// next one starts the fade, so the request can be taken back without anything having happened yet. The transition is
+// remembered and Link is held, the server asks the members in the same scene (L to say ready, B to take it back), and
+// when all of them are ready the transition is replayed as the game asked for it. The holder can press L to go
+// without waiting. The holder is never left stuck: a server that does not answer, a disconnect, leaving the party or
+// switching Story Co-op off all let the transition go ahead. Members in other scenes are not asked.
+
+void ZeldaOnlineClient::StorySetWarpFreeze(bool freeze) {
+    Player* player = gPlayState != nullptr ? GET_PLAYER(gPlayState) : nullptr;
+    if (player == nullptr) {
+        m_storyWarpFroze = false;
+        return;
+    }
+    if (freeze) {
+        if (!m_storyWarpFroze && !(player->stateFlags1 & PLAYER_STATE1_IN_CUTSCENE))
+            m_storyWarpFroze = true;
+        player->stateFlags1 |= PLAYER_STATE1_IN_CUTSCENE;
+    } else if (m_storyWarpFroze) {
+        player->stateFlags1 &= ~PLAYER_STATE1_IN_CUTSCENE;
+        m_storyWarpFroze = false;
+    }
+}
+
+// The game just asked for a transition into a scene cutscene: take it back and ask the party.
+void ZeldaOnlineClient::StoryStartWarpHold(PlayState* play) {
+    m_storyWarpEntrance = (u16)play->nextEntranceIndex;
+    m_storyWarpCsIndex = gSaveContext.nextCutsceneIndex;
+    m_storyWarpTransType = play->transitionType;
+    m_storyWarpNextTransType = gSaveContext.nextTransitionType;
+    play->transitionTrigger = TRANS_TRIGGER_OFF;
+
+    m_storyWarpHold = true;
+    m_storyWarpHeard = false;
+    m_storyWarpGo = false;
+    m_storyWarpHoldFrames = 0;
+    m_storyWarpVoted = 1;
+    m_storyWarpTotal = 1;
+    m_storyWarpMissing.clear();
+    m_storyWarpHolds++;
+    StorySetWarpFreeze(true);
+
+    WritePacket(newPacket(CLIENT_PACKET_STORY_WARP_VOTE)
+                << PackedUInt1(STORY_WARP_HOLD) << PackedUInt2((unsigned int)m_storyWarpEntrance)
+                << PackedUInt2((unsigned int)m_storyWarpCsIndex));
+}
+
+// Ends this player's own hold. run: replay the transition (it is announced to the party right after, without a vote).
+void ZeldaOnlineClient::StoryEndWarpHold(bool run) {
+    if (!m_storyWarpHold)
+        return;
+
+    m_storyWarpHold = false;
+    m_storyWarpGo = false;
+    m_storyWarpMissing.clear();
+
+    PlayState* play = gPlayState;
+    if (!run || play == nullptr) {
+        StorySetWarpFreeze(false);
+        return;
+    }
+
+    // Link stays held until the scene changes
+    m_storyWarpFroze = false;
+    play->nextEntranceIndex = m_storyWarpEntrance;
+    gSaveContext.nextCutsceneIndex = m_storyWarpCsIndex;
+    play->transitionType = m_storyWarpTransType;
+    gSaveContext.nextTransitionType = m_storyWarpNextTransType;
+    play->transitionTrigger = TRANS_TRIGGER_START;
+    m_storyWarpReleased = true;
+    m_storyCsTransitionSeen = false;
+}
+
+// Another member's vote in this scene is over (or this player left it).
+void ZeldaOnlineClient::StoryEndWarpVote() {
+    m_storyWarpVoting = false;
+    m_storyWarpReady = false;
+    m_storyWarpStarter.clear();
+    if (!m_storyWarpHold) {
+        m_storyWarpMissing.clear();
+        StorySetWarpFreeze(false);
+    }
+}
+
+// Called every frame from StoryUpdate, before the cutscenes are looked at.
+void ZeldaOnlineClient::StoryWatchWarp() {
+    PlayState* play = gPlayState;
+    Player* player = GET_PLAYER(play);
+    const u16 pressed = play->state.input[0].press.button;
+
+    if (m_storyWarpHold) {
+        m_storyWarpHoldFrames++;
+        // the game may ask again while it waits (Link still stands in the exit): keep the transition back
+        if (play->transitionTrigger == TRANS_TRIGGER_START)
+            play->transitionTrigger = TRANS_TRIGGER_OFF;
+        StorySetWarpFreeze(true);
+
+        if (player == nullptr || gSaveContext.health <= 0) {
+            // a game over takes over, the warp is gone with it
+            WritePacket(newPacket(CLIENT_PACKET_STORY_WARP_VOTE)
+                        << PackedUInt1(STORY_WARP_WITHDRAW) << PackedUInt2(0u) << PackedUInt2(0u));
+            StoryEndWarpHold(false);
+        } else if (m_storyWarpGo || (!m_storyWarpHeard && m_storyWarpHoldFrames >= STORY_WARP_SILENT_FRAMES)) {
+            StoryEndWarpHold(true);
+        } else if (m_storyWarpHeard && (pressed & BTN_L)) {
+            WritePacket(newPacket(CLIENT_PACKET_STORY_WARP_VOTE)
+                        << PackedUInt1(STORY_WARP_GO_NOW) << PackedUInt2(0u) << PackedUInt2(0u));
+            StoryEndWarpHold(true);
+        }
+        return;
+    }
+
+    if (!m_storyWarpVoting)
+        return;
+
+    if (m_storyWarpReady) {
+        StorySetWarpFreeze(true);
+        if (pressed & BTN_B) {
+            WritePacket(newPacket(CLIENT_PACKET_STORY_WARP_VOTE)
+                        << PackedUInt1(STORY_WARP_WITHDRAW) << PackedUInt2(0u) << PackedUInt2(0u));
+            m_storyWarpReady = false;
+            StorySetWarpFreeze(false);
+        }
+    } else if ((pressed & BTN_L) && player != nullptr && gSaveContext.health > 0 && !m_storyHold &&
+               play->transitionTrigger == TRANS_TRIGGER_OFF) {
+        WritePacket(newPacket(CLIENT_PACKET_STORY_WARP_VOTE)
+                    << PackedUInt1(STORY_WARP_READY) << PackedUInt2(0u) << PackedUInt2(0u));
+        m_storyWarpReady = true;
+        StorySetWarpFreeze(true);
+    }
+}
+
+std::string ZeldaOnlineClient::StoryWarpText() const {
+    std::string names;
+    for (size_t i = 0; i < m_storyWarpMissing.size(); i++) {
+        if (i != 0)
+            names += ", ";
+        names += m_storyWarpMissing[i];
+    }
+    const std::string count = "(" + std::to_string(m_storyWarpVoted) + "/" + std::to_string(m_storyWarpTotal) + ")";
+
+    std::string text;
+    if (m_storyWarpHold) {
+        text = "Waiting for the others to be ready " + count;
+        if (!names.empty())
+            text += ": " + names;
+        text += m_storyWarpHeard ? ". Press L to go now." : ".";
+    } else if (m_storyWarpReady) {
+        text = "Ready " + count;
+        if (!names.empty())
+            text += ", waiting for " + names;
+        text += ". Press B to cancel.";
+    } else {
+        text = (m_storyWarpStarter.empty() ? std::string("A party member") : m_storyWarpStarter) +
+               " is ready to continue the story " + count + ". Press L when you are ready.";
+    }
+    return StoryWrapText(text);
+}
+
+std::string ZeldaOnlineClient::StoryCsPromptText() const {
+    const int seconds = (m_storyCsPromptFrames + 19) / 20;
+    return StoryWrapText("Story scene with the party in " + std::to_string(seconds) + ". Press L to skip.");
+}
+
+void ZeldaOnlineClient::OnStoryWarpStatus(ByteStream& packet) {
+    if (packet.BytesLeft() < 6)
+        return;
+
+    u8 state = (u8)packet.Read<PackedUInt1>().value();
+    u8 ready = (u8)packet.Read<PackedUInt1>().value();
+    u8 total = (u8)packet.Read<PackedUInt1>().value();
+    u8 role = (u8)packet.Read<PackedUInt1>().value();
+    unsigned int len = packet.Read<PackedUInt1>().value();
+    if (packet.BytesLeft() < len)
+        return;
+    std::string starter = packet.ReadString(len);
+    if (packet.BytesLeft() < 1)
+        return;
+    u8 missingCount = (u8)packet.Read<PackedUInt1>().value();
+    std::vector<std::string> missing;
+    for (u8 i = 0; i < missingCount; i++) {
+        if (packet.BytesLeft() < 1)
+            return;
+        unsigned int nameLen = packet.Read<PackedUInt1>().value();
+        if (packet.BytesLeft() < nameLen)
+            return;
+        missing.push_back(packet.ReadString(nameLen));
+    }
+
+    if (!StoryCoopActive() || gPlayState == nullptr)
+        return;
+
+    if (m_storyWarpHold) {
+        // this player's own warp: a vote that is over lets it go (state 2 comes with a GO as well)
+        m_storyWarpHeard = true;
+        if (state != 1) {
+            m_storyWarpGo = true;
+            return;
+        }
+        m_storyWarpVoted = ready;
+        m_storyWarpTotal = total;
+        m_storyWarpMissing = missing;
+        return;
+    }
+
+    if (state != 1 || role == 2) {
+        // ready for a warp that goes ahead: its cutscene starts here without asking again
+        if (state == 2 && m_storyWarpReady)
+            m_storyWarpJoinFrames = STORY_WARP_JOIN_FRAMES;
+        StoryEndWarpVote();
+        return;
+    }
+
+    if (!m_storyWarpVoting)
+        m_storyWarpAsked++;
+    m_storyWarpVoting = true;
+    m_storyWarpReady = role == 1;
+    m_storyWarpVoted = ready;
+    m_storyWarpTotal = total;
+    m_storyWarpStarter = starter;
+    m_storyWarpMissing = missing;
+    if (!m_storyWarpReady)
+        StorySetWarpFreeze(false);
+}
+
+void ZeldaOnlineClient::OnStoryWarpGo(ByteStream& packet) {
+    (void)packet;
+    if (m_storyWarpHold) {
+        m_storyWarpHeard = true;
+        m_storyWarpGo = true;
+    }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Cutscenes watched together
 // ---------------------------------------------------------------------------------------------------------------
 //
@@ -1516,6 +1783,7 @@ const uint8_t STORY_CS_TRANSITION = 1;
 const uint8_t STORY_CS_EMBEDDED = 2;
 const int STORY_CS_ECHO_FRAMES = 60;     // a cutscene started for a member is not announced back
 const int STORY_CS_PENDING_FRAMES = 100; // how long a received cutscene may wait for a text box to close
+const int STORY_CS_PROMPT_FRAMES = 60;   // a member's cutscene starts here after this countdown unless L skips it
 const int STORY_CS_CHAIN_FRAMES = 3 * 60 * 20; // how long the next script of a sequence may wait for the previous one
 
 // story scripts compiled into an actor: sent by name, and only played where that actor is loaded (the same room),
@@ -1606,10 +1874,12 @@ void ZeldaOnlineClient::StoryWatchCutscenes() {
     }
 
     // time travel runs through the pedestal vote, every member starts that sequence on its own
-    const bool canAnnounce = m_storyCsRemoteFrames == 0 && !m_storyCsInRemote && !m_storyHold &&
+    const bool canAnnounce = m_storyCsRemoteFrames == 0 && !m_storyCsInRemote && !m_storyHold && !m_storyWarpHold &&
                              m_storyApprovedFrames == 0 && m_storyMoveEra < 0 && m_partyID != 0;
 
-    // a transition into a scene cutscene layer
+    // a transition into a scene cutscene layer: held for the warp vote first, announced once it goes ahead
+    const bool released = m_storyWarpReleased;
+    m_storyWarpReleased = false;
     if (!transitioning) {
         m_storyCsTransitionSeen = false;
     } else if (!m_storyCsTransitionSeen) {
@@ -1617,10 +1887,16 @@ void ZeldaOnlineClient::StoryWatchCutscenes() {
         const uint16_t index = gSaveContext.nextCutsceneIndex;
         if (canAnnounce && index >= 0xFFF0 && play->linkAgeOnLoad == gSaveContext.linkAge &&
             !StoryTransitionIsPersonal((u16)play->nextEntranceIndex, index)) {
-            WritePacket(newPacket(CLIENT_PACKET_STORY_CUTSCENE)
-                        << PackedUInt1(STORY_CS_TRANSITION) << PackedUInt2((unsigned int)(u16)play->nextEntranceIndex)
-                        << PackedUInt2(index));
-            m_storyCsSent++;
+            // only while it can still be taken back: the fade has not started yet
+            if (!released && play->transitionMode == TRANS_MODE_OFF) {
+                StoryStartWarpHold(play);
+                m_storyCsTransitionSeen = false;
+            } else {
+                WritePacket(newPacket(CLIENT_PACKET_STORY_CUTSCENE)
+                            << PackedUInt1(STORY_CS_TRANSITION)
+                            << PackedUInt2((unsigned int)(u16)play->nextEntranceIndex) << PackedUInt2(index));
+                m_storyCsSent++;
+            }
         }
     }
 
@@ -1667,16 +1943,8 @@ void ZeldaOnlineClient::StoryStartRemoteCutscene() {
 
     // already in a cutscene or on the way out: watching it already (or something of its own)
     if (play->transitionTrigger == TRANS_TRIGGER_START || play->csCtx.state != CS_STATE_IDLE || m_storyHold ||
-        m_storyApprovedFrames > 0 || player == nullptr || gSaveContext.health <= 0) {
+        m_storyWarpHold || m_storyApprovedFrames > 0 || player == nullptr || gSaveContext.health <= 0) {
         m_storyCsHasPending = false;
-        return;
-    }
-
-    // still fading in after a load, a text box or an item fanfare of its own: give it a moment
-    if (play->transitionTrigger != TRANS_TRIGGER_OFF || play->transitionMode != TRANS_MODE_OFF ||
-        play->msgCtx.msgMode != MSGMODE_NONE || Player_InCsMode(play)) {
-        if (++m_storyCsPendingWait >= STORY_CS_PENDING_FRAMES)
-            m_storyCsHasPending = false;
         return;
     }
 
@@ -1688,6 +1956,27 @@ void ZeldaOnlineClient::StoryStartRemoteCutscene() {
             m_storyCsHasPending = false;
             return;
         }
+    }
+
+    // a short countdown first, so a member who is busy can skip it with L (the story flags still arrive)
+    if (m_storyCsPromptFrames > 0) {
+        if (play->state.input[0].press.button & BTN_L) {
+            m_storyCsHasPending = false;
+            m_storyCsPromptFrames = 0;
+            m_storyCsSkipped++;
+            Notification::Emit({ .message = "Skipped the story scene" });
+            return;
+        }
+        if (--m_storyCsPromptFrames > 0)
+            return;
+    }
+
+    // still fading in after a load, a text box or an item fanfare of its own: give it a moment
+    if (play->transitionTrigger != TRANS_TRIGGER_OFF || play->transitionMode != TRANS_MODE_OFF ||
+        play->msgCtx.msgMode != MSGMODE_NONE || Player_InCsMode(play)) {
+        if (++m_storyCsPendingWait >= STORY_CS_PENDING_FRAMES)
+            m_storyCsHasPending = false;
+        return;
     }
 
     m_storyCsHasPending = false;
@@ -1743,6 +2032,13 @@ void ZeldaOnlineClient::OnStoryCutscene(ByteStream& packet) {
         return;
 
     m_storyCsReceived++;
+    // the next part of a sequence this player is already watching, or a warp this player said ready for, starts
+    // without asking; anything else gets the countdown
+    const bool chained = kind == STORY_CS_EMBEDDED && m_storyCsInRemote;
+    const bool warpJoined = kind == STORY_CS_TRANSITION && m_storyWarpJoinFrames > 0;
+    m_storyCsPromptFrames = (chained || warpJoined) ? 0 : STORY_CS_PROMPT_FRAMES;
+    if (warpJoined)
+        m_storyWarpJoinFrames = 0;
     m_storyCsHasPending = true;
     m_storyCsPendingWait = 0;
     m_storyCsPendingKind = kind;
@@ -1797,7 +2093,8 @@ void ZeldaOnlineClient::StoryWatchDialogue() {
     Player* player = GET_PLAYER(play);
     MessageContext* msg = &play->msgCtx;
     const bool busy = play->csCtx.state != CS_STATE_IDLE || play->transitionTrigger == TRANS_TRIGGER_START ||
-                      player == nullptr || gSaveContext.health <= 0 || m_storyHold || m_storyApprovedFrames > 0;
+                      player == nullptr || gSaveContext.health <= 0 || m_storyHold || m_storyApprovedFrames > 0 ||
+                      m_storyWarpHold;
 
     // receiving
     if (m_storyDlgFollowing) {

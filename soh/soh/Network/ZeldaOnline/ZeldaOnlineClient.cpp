@@ -1747,6 +1747,14 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
             OnStoryDialogue(packet);
             break;
 
+        case SERVER_PACKET_STORY_WARP_STATUS:
+            OnStoryWarpStatus(packet);
+            break;
+
+        case SERVER_PACKET_STORY_WARP_GO:
+            OnStoryWarpGo(packet);
+            break;
+
         case SERVER_PACKET_STORY_VOTE_STATUS:
             OnStoryVoteStatus(packet);
             break;
@@ -1921,6 +1929,10 @@ void ZeldaOnlineClient::DrawOverlay(GraphicsContext* gfxCtx) {
 
     if (m_storyHold)
         DrawScreenText(gfxCtx, StoryHoldText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
+    else if (m_storyWarpHold || m_storyWarpVoting)
+        DrawScreenText(gfxCtx, StoryWarpText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
+    else if (m_storyCsHasPending && m_storyCsPromptFrames > 0)
+        DrawScreenText(gfxCtx, StoryCsPromptText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
 }
 
 void ZeldaOnlineClient::UpdateAppearance() {

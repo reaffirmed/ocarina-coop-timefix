@@ -11,11 +11,30 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2
-      - name: Install clang-format
+      - name: Install clang-format 14
+        # Newer Ubuntu images no longer package clang-format-14, so use the
+        # PyPI wheel, which works on any runner image (see docs/FORMATTING.md).
+        run: pipx install clang-format==14.0.6
+      - name: Check formatting of changed lines
+        # Only lines this PR touches are checked, so code that was already
+        # unformatted in the base branch doesn't fail unrelated PRs.
+        # HEAD is the PR merge commit and HEAD^1 is the base branch.
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang-format-14
-      - name: Run clang-format
-        run: |
-          ./scripts/format/run-clang-format.sh
-          git diff --exit-code
+          # Same fileset as scripts/format/run-clang-format.sh
+          mapfile -t files < <(
+            git diff --name-only --diff-filter=d HEAD^1 HEAD -- \
+              'soh/*.c' 'soh/*.cpp' 'soh/*.h' 'soh/*.hpp' \
+              | grep -vE '^soh/assets/' \
+              | grep -vE '^soh/(src|include)/.*\.(h|hpp)$' || true
+          )
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No C/C++ files to check."
+            exit 0
+          fi
+          # git-clang-format 14 always exits 0, so look for a diff in its output.
+          out=$(git-clang-format --binary clang-format --diff HEAD^1 -- "${files[@]}")
+          echo "$out"
+          if grep -q '^diff --git' <<<"$out"; then
+            echo "::error::Changed lines are not clang-format 14 clean. Apply the diff above, or run git clang-format against the base branch locally (see docs/FORMATTING.md)."
+            exit 1
+          fi
