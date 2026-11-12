@@ -125,7 +125,7 @@ is carried out of the temple about 30 frames after spawning (also offline, so un
 
 `sync_gaps` covers the state that was not shared before the audit in `STORY_COOP_SYNC_AUDIT.md`: map areas and map rooms and
 floors, the high scores and records (including the Big Poe sum with a simultaneous delivery from both clients), the fishing
-record with the per player hat bit, Epona's parking spot (the last writer wins), the scarecrow songs, the Water Temple
+record with the per player hat bit, Epona's parking spot (per player: each member keeps their own), the scarecrow songs, the Water Temple
 level walked through four changes and the Forest Temple elevator toggled twice, and the per player parts that must stay
 apart (the Running Man score, the pond owner's hat, `eventInf`, which item is on the B button). It also checks that
 Gold Skulltula tokens, the Biggoron's Sword flag, owned sword and shield bits, magic and double defense reach the other

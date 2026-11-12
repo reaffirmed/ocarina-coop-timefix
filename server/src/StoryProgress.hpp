@@ -31,7 +31,7 @@ namespace ZeldaOnline
 	// Last writer wins slots: small blobs of state that is not a flag (a position, a recorded song, which of several
 	// switches is the live one). The higher stamp wins, an equal stamp falls back to the larger bytes so every side
 	// ends up with the same value. A stamp of 0 means "seeded from a save, never changed in this party".
-	static const uint8_t STORY_LWW_HORSE = 1;            // s16 scene, s16 x, y, z, s16 angle (horseData, where Epona waits)
+	static const uint8_t STORY_LWW_HORSE = 1;            // unused: Epona's parking spot (horseData) is per player now, old team saves may still hold it
 	static const uint8_t STORY_LWW_SCARECROW_SPAWN = 2; // u8 set flag, 16 ocarina notes of 8 bytes
 	static const uint8_t STORY_LWW_SCARECROW_LONG = 3;  // u8 set flag, 108 ocarina notes of 8 bytes
 	static const uint8_t STORY_LWW_WATER_LEVEL = 4;     // u8: 1, 2 or 3 = switch 0x1C, 0x1D or 0x1E is the live level
@@ -162,7 +162,7 @@ namespace ZeldaOnline
 	// player is in right now (Lon Lon Ranch race, horse state, cucco game, shooting gallery); the game never writes it
 	// to the save file and clears it when a save loads. Forcing a bit on another player would start or end a race for
 	// them, so no bit is shared. What those events leave behind permanently is in eventChkInf, itemGetInf, infTable
-	// and horseData, which are shared. See STORY_COOP_SYNC_AUDIT.md for the reading of every bit.
+	// (shared), and horseData (per player). See STORY_COOP_SYNC_AUDIT.md for the reading of every bit.
 	static const uint16_t STORY_EVENTINF_SHARE_MASK[4] = { 0, 0, 0, 0 };
 
 	// upgrades are packed into a u32 as 3 bit fields, except the wallet which uses 2 bits
