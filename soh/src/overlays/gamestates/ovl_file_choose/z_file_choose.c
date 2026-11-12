@@ -17,6 +17,7 @@
 #include "soh_assets.h"
 #include "soh/Enhancements/boss-rush/BossRush.h"
 #include "soh/Network/ZeldaOnline/ZeldaOnlineLobbyFileSelect.h"
+#include "soh/Updater/Updater.h"
 #include "soh/Enhancements/FileSelectEnhancements.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include <assert.h>
@@ -426,6 +427,11 @@ void FileChoose_UpdateMainMenu(GameState* thisx) {
     bool dpad = CVarGetInteger(CVAR_SETTING("DpadInText"), 0);
 
     FileChoose_UpdateRandomizer();
+
+    // the Story Co-op update prompt, while it is open
+    if (Updater_FileSelectUpdate(this)) {
+        return;
+    }
 
     // R: the Co-op screen
     if (CoopLobby_FileSelectCheckOpen(this)) {
@@ -2165,6 +2171,7 @@ void FileChoose_ConfigModeDraw(GameState* thisx) {
 
     if (this->configMode == CM_MAIN_MENU) {
         CoopLobby_FileSelectDrawPrompt(this);
+        Updater_FileSelectDraw(this);
     }
 
     // draw name entry menu

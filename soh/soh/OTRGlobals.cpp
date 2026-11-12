@@ -84,6 +84,7 @@
 #include "soh/Network/Sail/Sail.h"
 #include "soh/Network/Anchor/Anchor.h"
 #include "soh/Network/ZeldaOnline/ZeldaOnlineClient.hpp"
+#include "soh/Updater/Updater.h"
 #include "Enhancements/game-interactor/GameInteractor.h"
 #include "Enhancements/randomizer/draw.h"
 #include <libultraship/controller/controldeck/ControlDeck.h>
@@ -1533,6 +1534,7 @@ extern "C" void InitOTR(int argc, char* argv[]) {
         std::filesystem::current_path(std::filesystem::path(appImage).parent_path(), ec);
     }
 #endif
+    Updater_EarlyStart(argc, argv);
     OTRGlobals::Instance = new OTRGlobals();
     AutoTest::ParseArgs(argc, argv);
     OTRGlobals::Instance->RunExtract(argc, argv);
@@ -1616,6 +1618,7 @@ extern "C" void InitOTR(int argc, char* argv[]) {
     if (CVarGetInteger("gZeldaOnline.Enabled", 1)) {
         ZeldaOnline::ZeldaOnlineClient::Instance->Enable();
     }
+    Updater_Init();
 
     ShipInit::InitAll();
     AutoTest::RegisterHooks();
@@ -1649,6 +1652,9 @@ extern "C" void DeinitOTR() {
     sohFast3dWindow = nullptr;
 
     OTRGlobals::Instance->context = nullptr;
+
+    // last: every game file is closed now, so a downloaded update can replace them
+    Updater_Shutdown();
 }
 
 #ifdef _WIN32

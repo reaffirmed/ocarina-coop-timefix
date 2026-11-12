@@ -6,6 +6,8 @@
 #include <soh/GameVersions.h>
 #include "soh/ResourceManagerHelpers.h"
 #include "UIWidgets.hpp"
+#include "soh/Updater/Updater.h"
+#include "soh/Updater/StoryCoopVersion.h"
 #include <ship/controller/controldeck/ControlDeck.h>
 
 extern "C" {
@@ -199,6 +201,12 @@ void SohMenu::AddMenuSettings() {
             SDL_OpenURL(std::string("file:///" + std::filesystem::absolute(filesPath).string()).c_str());
         })
         .Options(ButtonOptions().Tooltip("Opens the folder that contains the save and mods folders, etc."));
+    AddWidget(path, "Check for Story Co-op updates", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_UPDATER_ENABLED)
+        .RaceDisable(false)
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip(
+            "When the game starts, ask GitHub whether a newer Story Co-op release is out, and offer it on the file "
+            "select. Nothing about you or your game is sent. This is version " STORY_COOP_VERSION "."));
 
     AddWidget(path, "Boot", WIDGET_SEPARATOR_TEXT);
     AddWidget(path, "Boot Sequence", WIDGET_CVAR_COMBOBOX)
