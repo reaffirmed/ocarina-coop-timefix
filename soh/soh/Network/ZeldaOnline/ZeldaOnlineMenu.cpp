@@ -58,6 +58,16 @@ void ZeldaOnlineMainMenu(WidgetInfo& info) {
         ShowZeldaOnlineWindow();
 
     UIWidgets::PopStyleButton();
+
+    ImGui::Spacing();
+
+    // See LiveMenus.h
+    UIWidgets::CVarCheckbox("Keep the game running in menus", "gZeldaOnline.LiveMenus",
+                            UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip(
+                                "While online, the pause menu and the ocarina don't stop the game: enemies and other "
+                                "players keep moving, Dark Souls style. Link stands still while the menu is open, and "
+                                "the menu closes by itself on death, scene changes, cutscenes and textboxes. Off "
+                                "pauses as in the original game. Takes effect the next time a menu opens."));
 }
 
 void RegisterZeldaOnlineMenu() {
