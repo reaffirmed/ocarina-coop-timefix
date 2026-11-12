@@ -18,6 +18,7 @@
 #include "soh/ActorDB.h"
 #include "soh/OTRGlobals.h"
 #include "soh/Network/ZeldaOnline/ZeldaOnlineClient.hpp"
+#include "soh/Network/ZeldaOnline/LiveMenus.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -2619,7 +2620,12 @@ void Actor_UpdateAll(PlayState* play, ActorContext* actorCtx) {
 
     sp80 = &D_80116068[0];
 
-    if (player->stateFlags2 & PLAYER_STATE2_OCARINA_PLAYING) {
+    // SOH [ZeldaOnline] A live ocarina (LiveMenus.h) does not freeze the world. Playing sets
+    // PLAYER_STATE1_IN_ITEM_CS | PLAYER_STATE1_IN_CUTSCENE, so those are left out of the freeze check below too.
+    // Link is still in a cutscene state, so he takes no damage while playing.
+    u8 liveOcarina = ZeldaOnline_LiveOcarina();
+
+    if ((player->stateFlags2 & PLAYER_STATE2_OCARINA_PLAYING) && !liveOcarina) {
         unkFlag = ACTOR_FLAG_UPDATE_DURING_OCARINA;
     }
 
@@ -2629,6 +2635,9 @@ void Actor_UpdateAll(PlayState* play, ActorContext* actorCtx) {
 
     for (i = 0; i < ARRAY_COUNT(actorCtx->actorLists); i++, sp80++) {
         unkCondition = (*sp80 & player->stateFlags1);
+        if (liveOcarina) {
+            unkCondition &= ~(PLAYER_STATE1_IN_ITEM_CS | PLAYER_STATE1_IN_CUTSCENE);
+        }
 
         actor = actorCtx->actorLists[i].head;
         while (actor != NULL) {

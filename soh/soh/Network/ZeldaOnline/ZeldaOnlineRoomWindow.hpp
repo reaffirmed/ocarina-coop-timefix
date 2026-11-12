@@ -1073,6 +1073,14 @@ class ZeldaOnlineRoomWindow : public Ship::GuiWindow {
         m_players.clear();
     }
 
+    const std::vector<PlayerEntry>& Players() const {
+        return m_players;
+    }
+
+    bool IsPartyAdmin() const {
+        return m_hasParty && m_partyAdmin;
+    }
+
     void SetConnected(bool connected) {
         m_connected = connected;
         m_connecting = false;

@@ -40,6 +40,12 @@ OOTSteamLink.exe host [--port 21050] [--server-exe <path>] [--game-exe <path>] [
 OOTSteamLink.exe join [lobby id] [--local-port <n>] [--game-exe <path>] [--no-launch]
 ```
 
+- `--status-file <path>` and `--parent-pid <pid>` are for the game's Co-op Lobby, which starts the helper hidden: events
+  are appended to the file one line each (`steam <name>`, `friends <n>` + `friend <lobby> <name>`,
+  `ready host <port> <lobby>`, `ready join <port> <host>`, `peer+ <name>`, `peer- <name>`, `hostgone`,
+  `error <text>`, `stopped`), the game picks a friend by writing the lobby id to `<path>.pick` and stops the helper by
+  creating `<path>.stop`. The helper also stops when the process `<pid>` is gone. Errors are written there instead of
+  waiting for a key press. The comment above `status()` in `ootsteamlink.c` has the details.
 - `--no-server` relays to a server that is already running on `--port` instead of starting one.
 - `--no-game` / `--no-launch` do not start `soh.exe`. Start the game yourself with the environment variable
   `OOT_SERVER=127.0.0.1:<port>` (the join window prints the port), or type that host and port into the online window.
@@ -108,6 +114,8 @@ over UDP and fakes lobbies and a friends list. Put it next to a copy of `OOTStea
 
 - `python test/stream_test.py --work <dir with H and J>`: byte-exact round trips (16 MB, odd sizes), parallel
   connections, close propagation in both directions, reconnects, restart of the join side, and the host vanishing.
+- `python test/lobby_test.py --work <dir with H and J>`: the Co-op Lobby mode (status lines, picking a friend,
+  stop requests, stopping when the game is gone, errors).
 - `python test/e2e_test.py --work <dir> --build-dir <soh.exe dir> --o2r <oot.o2r>`: starts the real `OOTServer.exe`
   through the host helper and runs the two-client `tools/coop-test` smoke scenario with both real game clients
   connected through the join helper.

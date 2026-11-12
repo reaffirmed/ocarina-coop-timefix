@@ -1,4 +1,5 @@
 #include "global.h"
+#include "soh/Network/ZeldaOnline/LiveMenus.h"
 #include "vt.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 
@@ -13,6 +14,13 @@ extern void KaleidoScope_Draw(PlayState* play);
 
 void KaleidoScopeCall_LoadPlayer() {
     KaleidoMgrOverlay* playerActorOvl = &gKaleidoMgrOverlayTable[KALEIDO_OVL_PLAYER_ACTOR];
+
+    // SOH [ZeldaOnline] Under a live pause menu (LiveMenus.h) Link keeps updating and drawing while the menu is open.
+    // The kaleido and player "overlays" are only bookkeeping in SoH (both are always in memory), but swapping the
+    // player in here would make KaleidoScopeCall_Draw skip the menu, so the menu stays loaded until it closes.
+    if (gZeldaOnlineLivePause && (gPlayState != NULL) && (gPlayState->pauseCtx.state != 0)) {
+        return;
+    }
 
     if (gKaleidoMgrCurOvl != playerActorOvl) {
         if (gKaleidoMgrCurOvl != NULL) {

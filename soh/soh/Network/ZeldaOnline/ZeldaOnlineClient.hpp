@@ -214,6 +214,20 @@ class ZeldaOnlineClient : public ZNetworking {
     int m_storyDlgShown = 0;
     int m_storyDlgTestActor = -1;            // auto-test only: the NPC a text box without a talk actor belongs to
 
+  public:
+    // Co-op Lobby (ZeldaOnlineLobby.cpp): the game hosts or joins through OOTSteamLink and the party forms by itself
+    enum class LobbyRole { None, Host, Join };
+
+  private:
+    LobbyRole m_lobbyRole = LobbyRole::None;
+    PartySettings m_lobbySettings; // host: the playthrough's story settings and team code
+    std::string m_lobbyHost;       // the helper's local address, used instead of the saved server
+    int m_lobbyPort = 0;
+    bool m_lobbyPartyRequested = false;
+    std::unordered_set<uint32_t> m_lobbyInvited;
+    void LobbyAfterAuth();
+    void LobbyInviteEveryone();
+    bool LobbyAutoAccept(uint32_t fromNetworkID, uint32_t partyID);
 
     void ReportBandwidth();
     bool NextPacket(ByteStream& out);
@@ -385,6 +399,24 @@ class ZeldaOnlineClient : public ZNetworking {
 
     void Connect();
     void Disconnect();
+
+    // Connects to the lobby helper's local port. A host creates a Story Co-op party with `settings` (the playthrough's
+    // story settings and team code) and invites every player who connects; a joiner accepts the first party invite.
+    void LobbyConnect(LobbyRole role, const std::string& host, int port, const PartySettings& settings);
+    // The lobby host changed the story settings: applied to the party right away. False when not the lobby host's
+    // party (yet); the settings are then used when the party is created.
+    bool LobbyUpdateSettings(const PartySettings& settings);
+    // Disconnects and goes back to the saved server settings.
+    void LobbyLeave();
+    LobbyRole GetLobbyRole() const {
+        return m_lobbyRole;
+    }
+    bool IsConnectedToServer() const {
+        return isConnected;
+    }
+    uint32_t PartyID() const {
+        return m_partyID;
+    }
 
     void OnConnected() override;
     void OnDisconnected() override;

@@ -1,4 +1,5 @@
 #include "ZeldaOnlineClient.hpp"
+#include "LiveMenus.h"
 #include <ship/window/Window.h>
 #include <ship/Context.h>
 #include "soh/Enhancements/cosmetics/cosmeticsTypes.h"
@@ -266,7 +267,11 @@ void ZeldaOnlineClient::Connect() {
             m_port = atoi(over.c_str() + colon + 1);
         }
     }
-
+    // the Co-op Lobby started its own helper: connect to that, whatever the saved server is
+    if (m_lobbyPort != 0) {
+        m_host = m_lobbyHost;
+        m_port = m_lobbyPort;
+    }
 
     std::vector<std::string> archives;
     SplitSkinRef(m_skinRef, m_skinName, archives);
@@ -584,6 +589,98 @@ void ZeldaOnlineClient::LoadPartySettings() {
         ZeldaOnlineRoomWindow::Instance->GetPartySettings() = m_partySettings;
 }
 
+// Co-op Lobby ----------------------------------------------------------------------------------------------------
+
+// The party settings are remembered for the next party this player creates.
+static void SavePartySettingsCVars(const PartySettings& settings) {
+    CVarSetInteger("gZeldaOnline.Party.PrivateDungeons", settings.privateDungeons ? 1 : 0);
+    CVarSetInteger("gZeldaOnline.Party.ExtraEnemies", settings.extraEnemies ? 1 : 0);
+    CVarSetFloat("gZeldaOnline.Party.ExtraEnemyWeight", settings.extraEnemyWeight);
+    CVarSetInteger("gZeldaOnline.Party.HealthMultiplier", settings.healthMultiplier ? 1 : 0);
+    CVarSetFloat("gZeldaOnline.Party.EnemyHealthWeight", settings.enemyHealthWeight);
+    CVarSetFloat("gZeldaOnline.Party.BossHealthWeight", settings.bossHealthWeight);
+    CVarSetInteger("gZeldaOnline.Party.StoryCoop", settings.storyCoop ? 1 : 0);
+    CVarSetInteger("gZeldaOnline.Party.ShareAmmoRupeesHp", settings.shareAmmoRupeesHp ? 1 : 0);
+    CVarSetString("gZeldaOnline.Party.StoryCode", settings.storyCode.c_str());
+    Ship::Context::GetRawInstance()->GetWindow()->GetGui()->SaveConsoleVariablesNextFrame();
+}
+
+void ZeldaOnlineClient::LobbyConnect(LobbyRole role, const std::string& host, int port, const PartySettings& settings) {
+    if (isEnabled) {
+        m_autoReconnect = false;
+        ZNetworking::Disable();
+    }
+    m_lobbyRole = role;
+    m_lobbyHost = host;
+    m_lobbyPort = port;
+    m_lobbySettings = settings;
+    m_lobbySettings.storyCoop = true; // the lobby is for Story Co-op
+    m_lobbyPartyRequested = false;
+    m_lobbyInvited.clear();
+    Connect();
+}
+
+void ZeldaOnlineClient::LobbyLeave() {
+    if (m_lobbyRole == LobbyRole::None)
+        return;
+    m_lobbyRole = LobbyRole::None;
+    m_lobbyPort = 0;
+    m_lobbyInvited.clear();
+    if (isEnabled)
+        Disconnect();
+}
+
+// The lobby host's party: Story Co-op with the playthrough's story settings and team code, so the server loads that
+// team save.
+void ZeldaOnlineClient::LobbyAfterAuth() {
+    if (m_lobbyRole != LobbyRole::Host || m_partyID != 0 || m_lobbyPartyRequested)
+        return;
+    m_lobbyPartyRequested = true;
+    m_partySettings = m_lobbySettings;
+    if (ZeldaOnlineRoomWindow::Instance != nullptr)
+        ZeldaOnlineRoomWindow::Instance->GetPartySettings() = m_partySettings;
+    SavePartySettingsCVars(m_partySettings);
+    WritePacket(newPacket(CLIENT_PACKET_PARTY_CREATE) << BuildPartySettingsJSON(m_partySettings));
+}
+
+bool ZeldaOnlineClient::LobbyUpdateSettings(const PartySettings& settings) {
+    if (m_lobbyRole != LobbyRole::Host)
+        return false;
+    m_lobbySettings = settings;
+    m_lobbySettings.storyCoop = true;
+    auto* window = ZeldaOnlineRoomWindow::Instance;
+    if (m_partyID == 0 || window == nullptr || !window->IsPartyAdmin())
+        return false;
+    // the team code picks the team save when the party is created; changing it later would do nothing
+    m_lobbySettings.storyCode = m_partySettings.storyCode;
+    window->GetPartySettings() = m_lobbySettings;
+    WritePacket(newPacket(CLIENT_PACKET_UPDATE_PARTY_SETTINGS) << BuildPartySettingsJSON(m_lobbySettings));
+    SetPartySettings(m_lobbySettings);
+    SavePartySettingsCVars(m_partySettings);
+    return true;
+}
+
+// Everybody on the lobby host's server came in through the host's Steam lobby, so they are all invited.
+void ZeldaOnlineClient::LobbyInviteEveryone() {
+    auto* window = ZeldaOnlineRoomWindow::Instance;
+    if (m_lobbyRole != LobbyRole::Host || m_partyID == 0 || window == nullptr || !window->IsPartyAdmin())
+        return;
+    for (const auto& entry : window->Players()) {
+        if (entry.isInParty || entry.networkID == (uint32_t)m_myNetworkID || m_lobbyInvited.count(entry.networkID))
+            continue;
+        m_lobbyInvited.insert(entry.networkID);
+        WritePacket(newPacket(CLIENT_PACKET_PARTY_INVITE) << PackedUInt2((uint16_t)entry.networkID));
+    }
+}
+
+// A lobby joiner takes the host's invite straight away.
+bool ZeldaOnlineClient::LobbyAutoAccept(uint32_t fromNetworkID, uint32_t partyID) {
+    if (m_lobbyRole != LobbyRole::Join || m_partyID != 0)
+        return false;
+    WritePacket(newPacket(CLIENT_PACKET_PARTY_JOIN) << PackedUInt2((uint16_t)fromNetworkID) << PackedUInt4(partyID));
+    return true;
+}
+
 void ZeldaOnlineClient::OnConnected() {
     DbgPrintf("OnConnected()\n");
     m_sendFullPlayerProps = true;
@@ -614,6 +711,8 @@ void ZeldaOnlineClient::OnDisconnected() {
     m_didDisconnect = true;
     m_hasWorldTime = false;
     m_partyID = 0U;
+    m_lobbyPartyRequested = false; // a reconnecting lobby host creates its party again
+    m_lobbyInvited.clear();
     StoryRefreshState();
     printf("PLAYER DISCONNECTED\n");
     RegisterNetworkingHook(false);
@@ -907,6 +1006,7 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
 
             WritePacket(newPacket(CLIENT_PACKET_INIT_PLAYER_LIST));
             SendTimeFlowsIfChanged();
+            LobbyAfterAuth();
         } break;
 
         case SERVER_PACKET_DESTROY_ACTOR: {
@@ -1346,6 +1446,7 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
                     window->AddPlayer(entry);
 
             }
+            LobbyInviteEveryone();
         } break;
 
         case SERVER_PACKET_PLAYER_LIST_REMOVE: {
@@ -1356,8 +1457,8 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
 
             if (ZeldaOnlineRoomWindow::Instance != nullptr)
                 ZeldaOnlineRoomWindow::Instance->RemovePlayer(networkID);
+            m_lobbyInvited.erase(networkID);
 
-            
         } break;
 
         case SERVER_PACKET_PLAYER_LIST_UPDATE: {
@@ -1408,6 +1509,7 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
                 m_partySize = 1;
 
             StoryRefreshState();
+            LobbyInviteEveryone();
 
             if (gPlayState && (IsDungeonScene(gPlayState->sceneNum) || IsBossScene(gPlayState->sceneNum)))
                 ReloadSceneInPlace(gPlayState);
@@ -1423,6 +1525,9 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
             uint32_t partyID = (uint32_t)(packet.Read<PackedUInt4>().value());
 
             if (partyID == 0 || partyID == m_partyID)
+                break;
+
+            if (LobbyAutoAccept(fromNetworkID, partyID))
                 break;
 
             if (ZeldaOnlineRoomWindow::Instance != nullptr)
@@ -1941,7 +2046,12 @@ void ZeldaOnlineClient::UpdateAppearance() {
     }
 
     ByteStream blob;
-    blob << PackedUInt1(LINK_IS_ADULT ? 0u : 1u);
+    // 2 = unknown: title screen, file select, credits or no save loaded. The title demo runs adult Link,
+    // so reporting LINK_IS_ADULT there would count as an adult vote in the party era (the server ignores >= 2).
+    uint8_t age = 2;
+    if (gPlayState != nullptr && gSaveContext.fileNum != 0xFF && gSaveContext.gameMode == GAMEMODE_NORMAL)
+        age = LINK_IS_ADULT ? 0u : 1u;
+    blob << PackedUInt1(age);
     blob << PackedUInt1((uint8_t)(m_skinRef.length())) << m_skinRef;
     blob << PackedUInt1((uint8_t)m_nickName.length()) << m_nickName;
 
@@ -2544,7 +2654,14 @@ void ZeldaOnlineClient::OnGameFrameUpdate() {
         }
     }
 
-    u8 simulationPaused = ((gPlayState->pauseCtx.state != 0) || (localPlayer->stateFlags1 & (PLAYER_STATE1_TALKING | PLAYER_STATE1_DEAD | PLAYER_STATE1_IN_ITEM_CS))) ? 1 : 0;
+    // A live pause menu or ocarina (LiveMenus.h) keeps the local world running, so it does not count as paused and
+    // keeps leadership of its actors. The ocarina sets PLAYER_STATE1_IN_ITEM_CS, which otherwise freezes actors.
+    bool menuFreezesWorld = (gPlayState->pauseCtx.state != 0) && !gZeldaOnlineLivePause;
+    u32 freezingStates = PLAYER_STATE1_TALKING | PLAYER_STATE1_DEAD | PLAYER_STATE1_IN_ITEM_CS;
+    if (ZeldaOnline_LiveOcarina()) {
+        freezingStates &= ~PLAYER_STATE1_IN_ITEM_CS;
+    }
+    u8 simulationPaused = (menuFreezesWorld || (localPlayer->stateFlags1 & freezingStates)) ? 1 : 0;
 
     if (simulationPaused != m_wasSimulationPaused) {
         WritePacket(newPacket(CLIENT_PACKET_SET_PAUSE_STATE) << PackedUInt1(simulationPaused));
@@ -2557,7 +2674,7 @@ void ZeldaOnlineClient::OnGameFrameUpdate() {
 
         for (auto& entry : m_networkedActors) {
             AbstractActorController* c = entry.second;
-            if (!c->IsPlayer() && c->IsLeader() && ((gPlayState->pauseCtx.state != 0) || c->CanRelinquishLeadership())) {
+            if (!c->IsPlayer() && c->IsLeader() && (menuFreezesWorld || c->CanRelinquishLeadership())) {
                 release << PackedUInt2((unsigned int)(c->NetworkID()));
                 count++;
                 c->SetLeader(false);
@@ -3231,6 +3348,19 @@ extern "C" int ZeldaOnlineClient_RequestRoomSceneChange(int freshLoad) {
 
     auto instance = ZeldaOnline::ZeldaOnlineClient::Instance;
     return 0;
+}
+
+extern "C" uint8_t ZeldaOnline_LiveMenusEnabled(void) {
+    auto* client = ZeldaOnline::ZeldaOnlineClient::Instance;
+    return client != nullptr && client->isConnected && CVarGetInteger("gZeldaOnline.LiveMenus", 1) != 0;
+}
+
+extern "C" uint8_t ZeldaOnline_LiveOcarina(void) {
+    if (gPlayState == nullptr || !ZeldaOnline_LiveMenusEnabled()) {
+        return 0;
+    }
+    Player* player = GET_PLAYER(gPlayState);
+    return player != nullptr && (player->stateFlags2 & PLAYER_STATE2_OCARINA_PLAYING) != 0;
 }
 
 extern "C" const char* ZeldaOnline_LocalSkinName() {
