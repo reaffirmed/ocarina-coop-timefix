@@ -2532,11 +2532,7 @@ void ZeldaOnlineClient::OnGameFrameUpdate() {
         }
     }
 
-    // Playing the ocarina freezes every local actor without ACTOR_FLAG_UPDATE_DURING_OCARINA (Actor_UpdateAll). Treat
-    // it like the pause menu, so the actors we lead are handed to a player whose game is still running instead of
-    // freezing in everyone's world for the length of the song.
-    bool ocarinaPlaying = (localPlayer->stateFlags2 & PLAYER_STATE2_OCARINA_PLAYING) != 0;
-    u8 simulationPaused = ((gPlayState->pauseCtx.state != 0) || ocarinaPlaying || (localPlayer->stateFlags1 & (PLAYER_STATE1_TALKING | PLAYER_STATE1_DEAD | PLAYER_STATE1_IN_ITEM_CS))) ? 1 : 0;
+    u8 simulationPaused = ((gPlayState->pauseCtx.state != 0) || (localPlayer->stateFlags1 & (PLAYER_STATE1_TALKING | PLAYER_STATE1_DEAD | PLAYER_STATE1_IN_ITEM_CS))) ? 1 : 0;
 
     if (simulationPaused != m_wasSimulationPaused) {
         WritePacket(newPacket(CLIENT_PACKET_SET_PAUSE_STATE) << PackedUInt1(simulationPaused));
@@ -2550,12 +2546,6 @@ void ZeldaOnlineClient::OnGameFrameUpdate() {
         for (auto& entry : m_networkedActors) {
             AbstractActorController* c = entry.second;
             if (!c->IsPlayer() && c->IsLeader() && ((gPlayState->pauseCtx.state != 0) || c->CanRelinquishLeadership())) {
-                // Actors that keep updating during the ocarina (the ones that react to songs) stay with us, so a
-                // song we play still reaches them locally.
-                if (gPlayState->pauseCtx.state == 0 && ocarinaPlaying && c->GetActor() != nullptr &&
-                    (c->GetActor()->flags & ACTOR_FLAG_UPDATE_DURING_OCARINA)) {
-                    continue;
-                }
                 release << PackedUInt2((unsigned int)(c->NetworkID()));
                 count++;
                 c->SetLeader(false);
