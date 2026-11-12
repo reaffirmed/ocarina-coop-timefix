@@ -31,9 +31,19 @@ It needs `OOTSteamLink` and `OOTServer` from the download next to the game, and 
 - Everybody who connects to the host's server is invited to the party by itself.
 - **Join a friend** lists the Steam friends who are hosting. Click one to join; the host's invite is accepted by
   itself. Accepting a Steam invite, or Join Game in the Steam friends list, works too while the list is open.
-- Then everyone chooses **Choose a save file** (or presses B): the window turns back to the files while the session
-  keeps running, and R returns to the Co-op menu. The lobby points at the file you used for this
-  playthrough last time; any file works, because the team progress is merged into it.
+- **Your name** (on the Co-op menu) is the name the others see. A on it opens a letter grid you can use with a
+  controller: A types, B deletes, START saves. It starts as your Steam name. It is the same setting as the nickname in
+  the party window.
+- Then everyone chooses **Start a new co-op file** or **Continue co-op file**. Online play always uses a save file of
+  its own for that playthrough (`Save/coop/host-<code>.sav` for the host, `Save/coop/join-<code>.sav` for someone who
+  joins), so nothing done online touches your three solo files. Choosing a solo file while the session runs plays the
+  error sound and says so. **Copy a solo file** copies one of your solo files into the co-op file, once, one way: the
+  solo file is never changed, and the co-op file it replaces is kept as `.bak`.
+- When you join a playthrough that is further along, a notification lists what the team's progress gave you
+  (items, equipment, upgrades, quest items, hearts and magic). It and the other co-op messages ("You revived ...",
+  "... gave you a red potion") use the game's own notifications, bottom right by default (Settings > Notifications).
+- **Choose a save file** (or B) still turns the window back to the files while the session keeps running, and R
+  returns to the Co-op menu.
 - **Stop hosting** saves the team progress and stops the server. Closing the game does the same.
 - The lobby's playthrough list is `coop-playthroughs.json` in the game's folder. A team code that was in use before the
   lobby existed is added to it as "Earlier playthrough".
@@ -43,6 +53,34 @@ How it works: the lobby starts `OOTSteamLink host --no-game` or `join --no-launc
 `--parent-pid` (see `tools/steamlink/README.md`), and connects the online client to the local port the helper reports.
 Code: `soh/soh/Network/ZeldaOnline/ZeldaOnlineLobby.*`, `ZeldaOnlineLobbyFileSelect.*` (the file select menu), `ZeldaOnlineLobbyHelper.cpp`, and `LobbyConnect` /
 `LobbyAfterAuth` / `LobbyInviteEveryone` / `LobbyAutoAccept` in `ZeldaOnlineClient.cpp`.
+
+## Co-op rules
+
+Optional rules, set per playthrough by the host in **Story settings** (both layouts, and the Co-op Lobby window). All
+of them are off by default; with all of them off the game plays exactly as without them. They only apply while Story
+Co-op is on.
+
+| Rule | Choices | What it does |
+| --- | --- | --- |
+| Friendly fire | Off / Light / Full | Teammates' swords, arrows, seeds and boomerangs hurt you. Light halves the damage and never takes your last heart. No damage during cutscenes, text boxes, votes, the ready check, or while you are downed. |
+| Revive with Zelda's Lullaby | Off / On | When you die with a teammate in the area you go down instead of getting a Game Over. A teammate who plays Zelda's Lullaby next to you (48 magic) gets you up with 3 hearts. |
+| Revive and heal with bottles | Off / On | Use a bottle next to a teammate to give it to them. Fairy: revives with 8 hearts. Red potion: revives with full hearts, or fully heals a teammate who is up. Blue potion: the same and also refills magic. Green potion: refills magic. Milk: 5 hearts, cannot revive (one drink, like drinking it yourself). Bugs, fish and poes do nothing. |
+| Time to revive | 30 / 60 seconds | How long you stay down. Hold B to give up sooner. With nobody left who could help you, the Game Over comes after 3 seconds. |
+| Death penalty | Off / Marker / Marker + Dark Link | A Game Over leaves a sparkling marker where you fell with some of your rupees. Walk back to it to pick them up. With Dark Link, as adult he guards the marker; beat him to get the rupees. He exists only in your game. One marker per save: a new one replaces the old. |
+| Rupees lost | None / A quarter / Half / All | The share of rupees left in the marker. |
+| Dark Link strength | Weaker / Water Temple | Weaker has half his health. |
+| Respawn cooldown | None / 5 / 10 seconds | Extra wait before the Game Over menu, with a countdown. |
+| Ready check | Off / On | Walking into a dungeon from outside, or through a boss door, waits until everyone in the area pressed L (the same vote as the warp vote). Press L again to go in anyway. |
+
+**Co-op menu in game:** pause and press L. It lists your teammates; **Teleport to** one takes you to them (greyed out
+when they are in another era or not in the game). Teleport is also in the party window as before.
+
+Markers are kept in `Save/coop/markers.json`. Friendly fire and Dark Link run in each player's own game, so a laggy
+hit is decided by the player who was hit.
+
+**Not included: proximity voice chat.** It would need audio capture, a codec and a voice relay through Steam or the
+server, plus echo handling and a way to test it without real microphones. That could not be made solid in this round,
+so it is left out instead of shipping something half working.
 
 ## What is shared
 
@@ -107,7 +145,8 @@ The team save is written to disk, so it survives a server restart. Clients still
 
 ## Code map
 
-- Client: `soh/soh/Network/ZeldaOnline/ZeldaOnlineStoryCoop.cpp`, plus additions in `ZeldaOnlineClient.*`, `PartySettings.hpp` and `ZeldaOnlineRoomWindow.hpp`.
+- Client: `soh/soh/Network/ZeldaOnline/ZeldaOnlineStoryCoop.cpp`, the co-op rules in `ZeldaOnlineCoopRules.cpp`
+  (hooks in `z_player.c` and `z_game_over.c`), plus additions in `ZeldaOnlineClient.*`, `PartySettings.hpp` and `ZeldaOnlineRoomWindow.hpp`.
 - Server: `server/src` (party team save, vote and era state machine, story packets).
 - Vanilla hooks: `VB_MASTER_SWORD_PEDESTAL_USE` (`z_bg_toki_swd.c`) and `VB_SWITCH_AGE` (`SwitchAge.cpp`).
 

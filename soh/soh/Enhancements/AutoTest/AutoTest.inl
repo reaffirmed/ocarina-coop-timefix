@@ -16,6 +16,9 @@ extern "C" {
 void Sram_InitDebugSave(void);
 // z_player.c: the action Link waits in after taking the sword off the pedestal
 void Player_Action_8084F608(Player* player, PlayState* play);
+s8 Player_ItemToItemAction(s32 item);
+s32 ZeldaOnline_FriendlyFireHit(Player* player, Actor* attacker);
+s32 ZeldaOnline_GiveBottle(PlayState* play, Player* player, s32 itemAction);
 }
 #include "soh/Enhancements/SwitchAge.h"
 #include "soh/SaveManager.h"
@@ -176,8 +179,105 @@ struct AutoTestAccess {
         return static_cast<AbstractActorController*>(actor->zoController)->IsLeader() ? 1 : 0;
     }
 
+    // Co-op rules state (ZeldaOnlineCoopRules.cpp)
+    static bool CoopDowned() {
+        return C()->m_coopIsDowned;
+    }
+    static int CoopDownedMates() {
+        return (int)C()->m_coopDowned.size();
+    }
+    static bool CoopReadyHold() {
+        return C()->m_coopReadyHold;
+    }
+    static bool CoopReadyVote() {
+        return C()->m_coopReadyVote;
+    }
+    static int CoopJoinCount() {
+        return (int)C()->m_coopJoinList.size();
+    }
+    static const std::vector<std::string>& CoopJoinList() {
+        return C()->m_coopJoinList;
+    }
+    static bool CoopMarkerHas() {
+        return C()->m_coopMarker.has;
+    }
+    static int CoopMarkerRupees() {
+        return C()->m_coopMarker.has ? C()->m_coopMarker.rupees : 0;
+    }
+    static int CoopMarkerScene() {
+        return C()->m_coopMarker.has ? C()->m_coopMarker.scene : -1;
+    }
+    static bool CoopDarkLink() {
+        return C()->m_coopDarkLink != nullptr;
+    }
+    static const std::string& CoopNotice() {
+        return C()->m_coopNotice;
+    }
+    static bool CoopMenuOpen() {
+        return C()->m_coopMenuOpen;
+    }
+    // Test only: opens the Co-op menu on the pause screen as L does (scripted input reaches the game after the
+    // menu has read the pad, real input before)
+    static void OpenCoopMenu() {
+        C()->m_coopMenuOpen = true;
+        C()->m_coopMenuCursor = 0;
+    }
+    // Test only: a death marker `dist` units in front of Link, holding `rupees` (as a Game Over leaves one)
+    static void PlaceMarker(float dist, int rupees) {
+        Player* p = GET_PLAYER(gPlayState);
+        auto& m = C()->m_coopMarker;
+        m = ZeldaOnlineClient::CoopMarker();
+        m.has = true;
+        m.scene = gPlayState->sceneNum;
+        m.age = gSaveContext.linkAge;
+        m.x = p->actor.world.pos.x + Math_SinS(p->actor.shape.rot.y) * dist;
+        m.y = p->actor.world.pos.y;
+        m.z = p->actor.world.pos.z + Math_CosS(p->actor.shape.rot.y) * dist;
+        m.rupees = rupees;
+        C()->m_coopDarkLinkSpawned = false;
+    }
+    // Puts Link `dist` units short of the death marker (on the line from where he stands), facing it
+    static bool MoveToMarker(float dist) {
+        auto& m = C()->m_coopMarker;
+        if (!m.has)
+            return false;
+        Player* p = GET_PLAYER(gPlayState);
+        float dx = p->actor.world.pos.x - m.x, dz = p->actor.world.pos.z - m.z;
+        float len = sqrtf(dx * dx + dz * dz);
+        if (len < 1.0f) { dx = 1.0f; dz = 0.0f; len = 1.0f; }
+        p->actor.world.pos.x = m.x + dx / len * dist;
+        p->actor.world.pos.z = m.z + dz / len * dist;
+        p->actor.world.pos.y = m.y;
+        p->actor.prevPos = p->actor.world.pos;
+        Vec3f mp = { m.x, m.y, m.z };
+        s16 yaw = Math_Vec3f_Yaw(&p->actor.world.pos, &mp);
+        p->actor.shape.rot.y = p->actor.world.rot.y = p->yaw = yaw;
+        return true;
+    }
+    // Test only: Dark Link's health to 0, as the last sword hit leaves it
+    static bool BeatDarkLink() {
+        if (C()->m_coopDarkLink == nullptr)
+            return false;
+        C()->m_coopDarkLink->colChkInfo.health = 0;
+        return true;
+    }
+    static int DarkLinkHealth() {
+        return C()->m_coopDarkLink != nullptr ? C()->m_coopDarkLink->colChkInfo.health : -1;
+    }
+    // The first teammate's puppet in this scene (nullptr if none)
+    static Actor* PeerActor() {
+        for (auto& entry : C()->m_networkedActors) {
+            AbstractActorController* c = entry.second;
+            if (c != nullptr && c->IsPlayer() && c->GetActor() != nullptr) {
+                return c->GetActor();
+            }
+        }
+        return nullptr;
+    }
+
     static void ApplySettings(const nlohmann::json& step) {
         PartySettings s = W()->m_partySettings;
+        if (step.contains("coop_rules")) ReadCoopRulesJSON(step["coop_rules"], s);
         if (step.contains("story_coop")) s.storyCoop = step["story_coop"].get<bool>();
         if (step.contains("share_ammo")) s.shareAmmoRupeesHp = step["share_ammo"].get<bool>();
         if (step.contains("private_dungeons")) s.privateDungeons = step["private_dungeons"].get<bool>();
@@ -323,6 +423,8 @@ struct State {
     int padStickX = 0;
     int padStickY = 0;
     double padStartPos[3] = { 0, 0, 0 };
+    float markPos[3] = { 0, 0, 0 }; // move_link mark
+    bool hasMark = false;
 };
 
 State sState;
@@ -465,6 +567,27 @@ bool SaveField(const std::string& full, bool write, int64_t& value) {
     if (name == "bgs_flag") return scalar(gSaveContext.bgsFlag);
     if (name == "deaths") return scalar(gSaveContext.deaths);
     if (name == "bgs_day_count") return scalar(gSaveContext.bgsDayCount);
+    if (name == "magic") return scalar(gSaveContext.magic);
+    if (name == "magic_level") return scalar(gSaveContext.magicLevel);
+    if (name == "rupees") return scalar(gSaveContext.rupees);
+    if (name == "health") return scalar(gSaveContext.health);
+    if (!write && gPlayState != nullptr) {
+        if (name == "game_over_state") { value = gPlayState->gameOverCtx.state; return true; }
+        if (name == "player_dead") { value = (GET_PLAYER(gPlayState)->stateFlags1 & PLAYER_STATE1_DEAD) ? 1 : 0; return true; }
+    }
+    if (!write && AutoTestAccess::C() != nullptr) {
+        if (name == "coop_downed") { value = AutoTestAccess::CoopDowned(); return true; }
+        if (name == "coop_downed_mates") { value = AutoTestAccess::CoopDownedMates(); return true; }
+        if (name == "coop_ready_hold") { value = AutoTestAccess::CoopReadyHold(); return true; }
+        if (name == "coop_ready_vote") { value = AutoTestAccess::CoopReadyVote(); return true; }
+        if (name == "coop_join_count") { value = AutoTestAccess::CoopJoinCount(); return true; }
+        if (name == "coop_marker") { value = AutoTestAccess::CoopMarkerHas(); return true; }
+        if (name == "coop_marker_rupees") { value = AutoTestAccess::CoopMarkerRupees(); return true; }
+        if (name == "coop_dark_link") { value = AutoTestAccess::CoopDarkLink(); return true; }
+        if (name == "coop_menu") { value = AutoTestAccess::CoopMenuOpen(); return true; }
+        if (name == "warp_hold") { value = AutoTestAccess::WarpHolding(); return true; }
+        if (name == "coop_death_penalty") { value = AutoTestAccess::Settings().deathPenalty; return true; }
+    }
     return false;
 }
 
@@ -506,6 +629,25 @@ json Observe(const json& step) {
     o["save_loaded"] = GameInteractor::IsSaveLoaded(true);
     o["file_num"] = gSaveContext.fileNum;
     o["save_file_exists"] = SaveManager::Instance->SaveFile_Exist(0);
+    {
+        json co;
+        const auto& ps2 = AutoTestAccess::Settings();
+        WriteCoopRulesJSON(ps2, co);
+        co["downed"] = AutoTestAccess::CoopDowned();
+        co["downed_mates"] = AutoTestAccess::CoopDownedMates();
+        co["ready_hold"] = AutoTestAccess::CoopReadyHold();
+        co["ready_vote"] = AutoTestAccess::CoopReadyVote();
+        co["join_list"] = AutoTestAccess::CoopJoinList();
+        co["marker"] = AutoTestAccess::CoopMarkerHas();
+        co["marker_rupees"] = AutoTestAccess::CoopMarkerRupees();
+        co["marker_scene"] = AutoTestAccess::CoopMarkerScene();
+        co["dark_link"] = AutoTestAccess::CoopDarkLink();
+        co["dark_link_health"] = AutoTestAccess::DarkLinkHealth();
+        co["notice"] = AutoTestAccess::CoopNotice();
+        co["magic"] = gSaveContext.magic;
+        co["game_over_state"] = gPlayState != nullptr ? (int)gPlayState->gameOverCtx.state : -1;
+        o["coop"] = co;
+    }
     json peers = json::array();
     for (auto& p : AutoTestAccess::Players()) {
         json pj;
@@ -518,8 +660,12 @@ json Observe(const json& step) {
         peers.push_back(pj);
     }
     o["peers"] = peers;
+    o["voice"] = ZeldaOnline::VoiceChat::Instance().TestStats();
     if (gPlayState != nullptr && GameInteractor::IsSaveLoaded(true)) {
         Player* p = GET_PLAYER(gPlayState);
+        o["pos"] = { p->actor.world.pos.x, p->actor.world.pos.y, p->actor.world.pos.z };
+        o["camera_dir"] = { gPlayState->view.lookAt.x - gPlayState->view.eye.x,
+                            gPlayState->view.lookAt.z - gPlayState->view.eye.z };
         o["scene"] = gPlayState->sceneNum;
         o["room"] = gPlayState->roomCtx.curRoom.num;
         o["entrance"] = gSaveContext.entranceIndex;
@@ -812,6 +958,37 @@ bool RunStep(const json& step) {
         return false;
     };
 
+    if (op == "set_cvar") {
+        // `name`, and `int` or `string`: changes a setting the way its menu would
+        if (step.contains("string"))
+            CVarSetString(step.value("name", "").c_str(), step.value("string", "").c_str());
+        else
+            CVarSetInteger(step.value("name", "").c_str(), step.value("int", 0));
+        return true;
+    }
+    if (op == "move_link") {
+        // puts Link `dx`, `dz` (game units) from where `from` was recorded with `mark`, or from where he stands now
+        if (!PlayReady()) return timedOut("move_link: not ready");
+        Player* pl = GET_PLAYER(gPlayState);
+        if (step.value("mark", false)) {
+            sState.markPos[0] = pl->actor.world.pos.x;
+            sState.markPos[1] = pl->actor.world.pos.y;
+            sState.markPos[2] = pl->actor.world.pos.z;
+            sState.hasMark = true;
+        }
+        float bx = pl->actor.world.pos.x, by = pl->actor.world.pos.y, bz = pl->actor.world.pos.z;
+        if (step.value("from_mark", false) && sState.hasMark) {
+            bx = sState.markPos[0];
+            by = sState.markPos[1];
+            bz = sState.markPos[2];
+        }
+        pl->actor.world.pos.x = bx + step.value("dx", 0.0f);
+        pl->actor.world.pos.y = by + step.value("dy", 0.0f);
+        pl->actor.world.pos.z = bz + step.value("dz", 0.0f);
+        pl->actor.prevPos = pl->actor.world.pos;
+        pl->actor.velocity.x = pl->actor.velocity.y = pl->actor.velocity.z = 0.0f;
+        return true;
+    }
     if (op == "wait_frames") {
         return sState.stepFrames >= (uint32_t)step.value("n", 1);
     }
@@ -1403,6 +1580,102 @@ bool RunStep(const json& step) {
         p->actor.prevPos = p->actor.world.pos;
         s16 yaw = Math_Vec3f_Yaw(&p->actor.world.pos, &best->world.pos);
         p->actor.shape.rot.y = p->actor.world.rot.y = p->yaw = yaw;
+        return true;
+    }
+    if (op == "approach_peer") {
+        // puts Link `dist` units from the first teammate's puppet, facing it
+        if (!PlayReady()) return timedOut("approach_peer not ready");
+        Actor* peer = AutoTestAccess::PeerActor();
+        if (peer == nullptr) return timedOut("approach_peer: no teammate in the scene");
+        Player* p = GET_PLAYER(gPlayState);
+        float dist = step.value("dist", 50.0f);
+        float dx = p->actor.world.pos.x - peer->world.pos.x, dz = p->actor.world.pos.z - peer->world.pos.z;
+        float len = sqrtf(dx * dx + dz * dz);
+        if (len < 1.0f) { dx = 1.0f; dz = 0.0f; len = 1.0f; }
+        dx /= len; dz /= len;
+        p->actor.world.pos.x = peer->world.pos.x + dx * dist;
+        p->actor.world.pos.z = peer->world.pos.z + dz * dist;
+        p->actor.world.pos.y = peer->world.pos.y;
+        p->actor.prevPos = p->actor.world.pos;
+        s16 yaw = Math_Vec3f_Yaw(&p->actor.world.pos, &peer->world.pos);
+        p->actor.shape.rot.y = p->actor.world.rot.y = p->yaw = yaw;
+        return true;
+    }
+    if (op == "coop_song") {
+        // finishes a free play song (Zelda's Lullaby by default) the way the ocarina does when it is put away
+        if (!PlayReady()) return timedOut("coop_song not ready");
+        gPlayState->msgCtx.lastPlayedSong = (u8)step.value("song", (int)OCARINA_SONG_LULLABY);
+        gPlayState->msgCtx.ocarinaAction = OCARINA_ACTION_FREE_PLAY_DONE;
+        GameInteractor_ExecuteOnOcarinaSongAction();
+        gPlayState->msgCtx.ocarinaAction = 0;
+        return true;
+    }
+    if (op == "coop_bottle") {
+        // uses the bottle in inventory slot 18 (filled with `item`, e.g. 45 a fairy) from C-Left, the way Link drinks
+        // one; a teammate close by gets it if the rules allow. Records whether it was given as `name`.
+        if (!PlayReady()) return timedOut("coop_bottle not ready");
+        Player* pl = GET_PLAYER(gPlayState);
+        const int item = step.value("item", (int)ITEM_FAIRY);
+        gSaveContext.inventory.items[SLOT_BOTTLE_1] = (u8)item;
+        gSaveContext.equips.buttonItems[1] = (u8)item;
+        gSaveContext.equips.cButtonSlots[0] = SLOT_BOTTLE_1;
+        Interface_LoadItemIcon1(gPlayState, 1);
+        pl->heldItemButton = 1;
+        const s32 ia = Player_ItemToItemAction((s32)item);
+        const bool given = ZeldaOnline_GiveBottle(gPlayState, pl, ia) != 0;
+        json o;
+        o["name"] = step.value("name", "bottle");
+        o["frame"] = sState.frame;
+        o["item"] = item;
+        o["given"] = given;
+        o["slot_after"] = gSaveContext.inventory.items[SLOT_BOTTLE_1];
+        sState.observations.push_back(o);
+        WriteLog();
+        Event(std::string("coop_bottle given ") + (given ? "yes" : "no"));
+        return true;
+    }
+    if (op == "coop_place_marker") {
+        if (!PlayReady()) return timedOut("coop_place_marker not ready");
+        AutoTestAccess::PlaceMarker(step.value("dist", 150.0f), step.value("rupees", 50));
+        return true;
+    }
+    if (op == "move_to_marker") {
+        if (!PlayReady() || !AutoTestAccess::MoveToMarker(step.value("dist", 0.0f))) return timedOut("move_to_marker: no marker");
+        return true;
+    }
+    if (op == "coop_open_menu") {
+        if (gPlayState == nullptr || gPlayState->pauseCtx.state != 6) return timedOut("coop_open_menu: not paused");
+        AutoTestAccess::OpenCoopMenu();
+        return true;
+    }
+    if (op == "coop_beat_dark_link") {
+        if (!AutoTestAccess::BeatDarkLink()) return timedOut("coop_beat_dark_link: no Dark Link");
+        return true;
+    }
+    if (op == "peer_hit") {
+        // a teammate's sword hit of `damage` (1/16 hearts) on Link through the friendly fire rules and the player's own
+        // hit response. Records health before and after as `name`.
+        if (!PlayReady()) return timedOut("peer_hit not ready");
+        Actor* peer = AutoTestAccess::PeerActor();
+        if (peer == nullptr) return timedOut("peer_hit: no teammate in the scene");
+        Player* pl = GET_PLAYER(gPlayState);
+        const s16 before = gSaveContext.health;
+        pl->invincibilityTimer = 0;
+        pl->actor.colChkInfo.damage = (u8)step.value("damage", 32);
+        const bool allowed = ZeldaOnline_FriendlyFireHit(pl, peer) != 0;
+        if (allowed) {
+            func_80837C0C(gPlayState, pl, 0, 4.0f, 5.0f, pl->actor.shape.rot.y, 20);
+        }
+        json o;
+        o["name"] = step.value("name", "peer_hit");
+        o["frame"] = sState.frame;
+        o["allowed"] = allowed;
+        o["before"] = before;
+        o["after"] = gSaveContext.health;
+        o["lost"] = before - gSaveContext.health;
+        sState.observations.push_back(o);
+        WriteLog();
+        Event("peer_hit lost " + std::to_string(before - gSaveContext.health));
         return true;
     }
     if (op == "log") {

@@ -41,10 +41,13 @@ On the file select screen, press **R** to open the **Co-op** menu. You use it wi
   background.
 - **Join a friend:** shows the Steam friends who are hosting. Pick one and you are added to their party by
   yourself.
-- **Choose a save file** (or press B) takes you back to the files while the session keeps running. Any file works,
-  because the team progress is merged into it. The top right shows "R: Co-op - hosting" or "- with <name>".
+- **Your name** is what the others see. It starts as your Steam name; change it with the letter grid (A types, B
+  deletes, START saves).
+- **Start a new co-op file** / **Continue co-op file** starts the game. Each playthrough has its own co-op save file,
+  so your three solo files are never touched online. **Copy a solo file** brings one of them along, once, one way (the
+  solo file stays as it is). The top right shows "R: Co-op - hosting" or "- with <name>".
 - **Story settings** can be changed by the host for the whole party while hosting: share ammo and health, private
-  dungeons, extra enemies, enemy health, boss health and enemy damage.
+  dungeons, extra enemies, enemy health, boss health and enemy damage, and the optional co-op rules below.
 - **Layout** switches between **Classic** (inside the game's own file select window) and **Modern** (a full screen
   view with the party list).
 
@@ -100,6 +103,20 @@ Tailscale or ZeroTier.
   still reaches you.
 - **Story fixes:** Mido, King Zora and the Kakariko gate move as soon as another player's story flag arrives, and
   the Great Deku Tree cutscenes are watched together.
+
+- **Optional co-op rules**, all off by default and set per playthrough by the host (details in
+  [STORY_COOP.md](docs/story-coop/STORY_COOP.md#co-op-rules)):
+  - **Friendly fire:** Off, Light (half damage, never your last heart) or Full. Never during cutscenes, text or votes.
+  - **Revives:** when you die near a teammate you go down for 30 or 60 seconds. A teammate plays Zelda's Lullaby next
+    to you (48 magic, back with 3 hearts) or uses a bottle on you: a fairy (8 hearts), a red potion (full hearts) or a
+    blue potion (full hearts and magic). Potions and milk also heal a teammate who is up; a green potion refills magic.
+  - **Death penalty:** a Game Over leaves a marker with some of your rupees (none, a quarter, half or all) where you
+    fell. Optionally, as adult, Dark Link guards it in your game only.
+  - **Respawn cooldown** of 5 or 10 seconds, and a **ready check** at dungeon entrances and boss doors.
+- **Co-op menu in game:** pause and press L to **Teleport to** a teammate.
+- **What you got on joining:** joining a playthrough that is further along shows what the team's progress gave you.
+
+Proximity voice chat is not included.
 
 Note that L also toggles the minimap in vanilla, so pressing L to vote or skip will toggle it too.
 
