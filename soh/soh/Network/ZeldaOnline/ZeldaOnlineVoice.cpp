@@ -33,18 +33,18 @@ namespace ZeldaOnline {
 using namespace Voice;
 
 // Settings (all per player, saved with the other CVars)
-static const char* CVAR_ENABLED = "gZeldaOnline.Voice.Enabled";    // 1: hear others and allow the mic
-static const char* CVAR_MIC = "gZeldaOnline.Voice.Mic";            // 1: use the microphone
-static const char* CVAR_MODE = "gZeldaOnline.Voice.Mode";          // 0 push to talk, 1 voice activation
-static const char* CVAR_PTT_KEY = "gZeldaOnline.Voice.PttKey";     // SDL scancode
-static const char* CVAR_PTT_PAD = "gZeldaOnline.Voice.PttPad";     // 0 none, 1 left stick click, 2 right stick click
+static const char* CVAR_ENABLED = "gZeldaOnline.Voice.Enabled";     // 1: hear others and allow the mic
+static const char* CVAR_MIC = "gZeldaOnline.Voice.Mic";             // 1: use the microphone
+static const char* CVAR_MODE = "gZeldaOnline.Voice.Mode";           // 0 push to talk, 1 voice activation
+static const char* CVAR_PTT_KEY = "gZeldaOnline.Voice.PttKey";      // SDL scancode
+static const char* CVAR_PTT_PAD = "gZeldaOnline.Voice.PttPad";      // 0 none, 1 left stick click, 2 right stick click
 static const char* CVAR_THRESHOLD = "gZeldaOnline.Voice.Threshold"; // voice activation level, dBFS
-static const char* CVAR_RANGE = "gZeldaOnline.Voice.Range";        // game units where a voice fades out
-static const char* CVAR_VOLUME = "gZeldaOnline.Voice.Volume";      // percent
-static const char* CVAR_MIC_GAIN = "gZeldaOnline.Voice.MicGain";   // percent
-static const char* CVAR_DEVICE = "gZeldaOnline.Voice.InputDevice"; // "" = system default
-static const char* CVAR_MUTED = "gZeldaOnline.Voice.Muted";        // muted names, one per line
-static const char* CVAR_TEST_TONE = "gZeldaOnline.Voice.TestTone"; // automated tests: send a sine of this many Hz
+static const char* CVAR_RANGE = "gZeldaOnline.Voice.Range";         // game units where a voice fades out
+static const char* CVAR_VOLUME = "gZeldaOnline.Voice.Volume";       // percent
+static const char* CVAR_MIC_GAIN = "gZeldaOnline.Voice.MicGain";    // percent
+static const char* CVAR_DEVICE = "gZeldaOnline.Voice.InputDevice";  // "" = system default
+static const char* CVAR_MUTED = "gZeldaOnline.Voice.Muted";         // muted names, one per line
+static const char* CVAR_TEST_TONE = "gZeldaOnline.Voice.TestTone";  // automated tests: send a sine of this many Hz
 
 static const int DEFAULT_RANGE = 1500;
 static const float NEAR_DIST = 250.0f; // full volume this close (about four Links apart)
@@ -639,9 +639,9 @@ void VoiceChat::DrawSettings() {
     if (!CVarGetInteger(CVAR_ENABLED, 1))
         return;
 
-    UIWidgets::CVarCheckbox("Use my microphone", CVAR_MIC,
-                            UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip(
-                                "Off: you only listen. Nobody can hear you."));
+    UIWidgets::CVarCheckbox(
+        "Use my microphone", CVAR_MIC,
+        UIWidgets::CheckboxOptions().DefaultValue(true).Tooltip("Off: you only listen. Nobody can hear you."));
 
     if (CVarGetInteger(CVAR_MIC, 1)) {
         // microphone choice
@@ -697,9 +697,9 @@ void VoiceChat::DrawSettings() {
                 }
             }
             static const char* pads[] = { "None", "Left stick click", "Right stick click" };
-            UIWidgets::CVarCombobox("Controller button", CVAR_PTT_PAD, pads,
-                                    UIWidgets::ComboboxOptions().DefaultIndex(2).Tooltip(
-                                        "Hold this on your controller to talk."));
+            UIWidgets::CVarCombobox(
+                "Controller button", CVAR_PTT_PAD, pads,
+                UIWidgets::ComboboxOptions().DefaultIndex(2).Tooltip("Hold this on your controller to talk."));
         } else {
             UIWidgets::CVarSliderInt("Activation level: %d dB", CVAR_THRESHOLD,
                                      UIWidgets::IntSliderOptions().Min(-70).Max(-10).DefaultValue(-45).Tooltip(
@@ -727,10 +727,15 @@ void VoiceChat::DrawSettings() {
         ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.4f, 1.0f), "Can't play voices: %s", m_playError.c_str());
     UIWidgets::CVarSliderInt("Voice volume: %d%%", CVAR_VOLUME,
                              UIWidgets::IntSliderOptions().Min(0).Max(200).DefaultValue(100));
-    UIWidgets::CVarSliderInt("Hearing range: %d", CVAR_RANGE,
-                             UIWidgets::IntSliderOptions().Min(500).Max(5000).Step(100).DefaultValue(DEFAULT_RANGE).Tooltip(
-                                 "How far away (in game units) a voice fades out. Players within about 250 are at "
-                                 "full volume. 1500 is roughly across Kokiri Forest's central clearing."));
+    UIWidgets::CVarSliderInt(
+        "Hearing range: %d", CVAR_RANGE,
+        UIWidgets::IntSliderOptions()
+            .Min(500)
+            .Max(5000)
+            .Step(100)
+            .DefaultValue(DEFAULT_RANGE)
+            .Tooltip("How far away (in game units) a voice fades out. Players within about 250 are at "
+                     "full volume. 1500 is roughly across Kokiri Forest's central clearing."));
 
     // per player mute, for everyone this player can hear right now
     std::vector<std::pair<int, std::string>> people;
@@ -766,7 +771,9 @@ static void DrawVoiceMenu(WidgetInfo& info) {
 
 static void RegisterVoiceMenu() {
     WidgetPath path = { "Network", "Zelda Online", SECTION_COLUMN_2 };
-    SohGui::mSohMenu->AddWidget(path, "ZeldaOnlineVoiceMenu", WIDGET_CUSTOM).CustomFunction(DrawVoiceMenu).HideInSearch(true);
+    SohGui::mSohMenu->AddWidget(path, "ZeldaOnlineVoiceMenu", WIDGET_CUSTOM)
+        .CustomFunction(DrawVoiceMenu)
+        .HideInSearch(true);
 }
 
 static RegisterMenuInitFunc voiceMenuInitFunc(RegisterVoiceMenu);

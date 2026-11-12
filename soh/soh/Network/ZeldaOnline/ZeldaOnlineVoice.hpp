@@ -118,7 +118,7 @@ class VoiceChat {
     float m_micDb = -100.0f; // level of the last frame, for the meter
     uint32_t m_framesSent = 0;
     uint32_t m_packetsSent = 0;
-    int m_testTone = 0;      // gZeldaOnline.Voice.TestTone: a sine in Hz instead of the microphone (automated tests)
+    int m_testTone = 0; // gZeldaOnline.Voice.TestTone: a sine in Hz instead of the microphone (automated tests)
     uint32_t m_toneTicks = 0;
     double m_tonePhase = 0.0;
 

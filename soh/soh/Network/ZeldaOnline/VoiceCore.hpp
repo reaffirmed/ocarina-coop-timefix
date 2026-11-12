@@ -138,7 +138,8 @@ class VoiceGate {
 // drops its oldest frames back to the target so the delay stays short.
 class JitterBuffer {
   public:
-    JitterBuffer(int targetFrames = 5, int maxFrames = 15) : m_target(targetFrames), m_max(maxFrames) {}
+    JitterBuffer(int targetFrames = 5, int maxFrames = 15) : m_target(targetFrames), m_max(maxFrames) {
+    }
 
     void Push(const float* pcm, bool endOfSpurt) {
         m_frames.emplace_back(pcm, pcm + FRAME_SAMPLES);
