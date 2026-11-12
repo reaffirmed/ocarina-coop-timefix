@@ -31,6 +31,20 @@ jobs:
     steps:
     - name: Git Checkout
       uses: actions/checkout@v4
+    - name: Check the tag matches the version in the build
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # The in-game updater compares STORY_COOP_VERSION with the newest release tag: they have to agree, or players
+        # are offered the release they already have (or never offered the next one).
+        sha=$(gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.windows_run_id }}" --jq .head_sha)
+        version=$(gh api -H "Accept: application/vnd.github.raw" \
+          "repos/${{ github.repository }}/contents/soh/soh/Updater/StoryCoopVersion.h?ref=$sha" |
+          sed -n 's/^#define STORY_COOP_VERSION "\(.*\)"$/\1/p')
+        echo "build $sha has STORY_COOP_VERSION $version"
+        if [ "v$version" != "${{ inputs.tag }}" ]; then
+          echo "::error::tag ${{ inputs.tag }} does not match STORY_COOP_VERSION $version in soh/soh/Updater/StoryCoopVersion.h"; exit 1
+        fi
     - name: Download Windows package
       uses: actions/download-artifact@v4
       with:
