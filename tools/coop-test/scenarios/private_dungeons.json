@@ -1,0 +1,221 @@
+{
+  "name": "private_dungeons",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 21650
+  },
+  "boot": {
+    "entrance": 187,
+    "age": "child"
+  },
+  "roles": {
+    "A": {
+      "name": "TestA",
+      "steps": [
+        {
+          "op": "wait_play",
+          "timeout_frames": 1800
+        },
+        {
+          "op": "connect"
+        },
+        {
+          "op": "wait_until",
+          "cond": "connected",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "wait_until",
+          "cond": "net_id",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "warp",
+          "entrance": 238,
+          "scene": 85,
+          "timeout_frames": 1800
+        },
+        {
+          "op": "wait_until",
+          "cond": "other_players",
+          "n": 1,
+          "timeout_frames": 3600
+        },
+        {
+          "op": "create_party",
+          "private_dungeons": true
+        },
+        {
+          "op": "wait_until",
+          "cond": "has_party",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "wait_until",
+          "cond": "peer_puppets",
+          "n": 1,
+          "timeout_frames": 3600
+        },
+        {
+          "op": "wait_frames",
+          "n": 60
+        },
+        {
+          "op": "observe",
+          "name": "forest"
+        },
+        {
+          "op": "wait_frames",
+          "n": 400
+        },
+        {
+          "op": "warp",
+          "entrance": 0,
+          "scene": 0,
+          "timeout_frames": 1800
+        },
+        {
+          "op": "wait_frames",
+          "n": 600
+        },
+        {
+          "op": "observe",
+          "name": "deku_tree"
+        },
+        {
+          "op": "wait_frames",
+          "n": 120
+        },
+        {
+          "op": "quit",
+          "pass": true
+        }
+      ]
+    },
+    "B": {
+      "name": "TestB",
+      "steps": [
+        {
+          "op": "wait_play",
+          "timeout_frames": 1800
+        },
+        {
+          "op": "connect"
+        },
+        {
+          "op": "wait_until",
+          "cond": "connected",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "wait_until",
+          "cond": "net_id",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "warp",
+          "entrance": 238,
+          "scene": 85,
+          "timeout_frames": 1800
+        },
+        {
+          "op": "wait_until",
+          "cond": "other_players",
+          "n": 1,
+          "timeout_frames": 3600
+        },
+        {
+          "op": "create_party",
+          "private_dungeons": true
+        },
+        {
+          "op": "wait_until",
+          "cond": "has_party",
+          "timeout_frames": 1200
+        },
+        {
+          "op": "wait_until",
+          "cond": "peer_puppets",
+          "n": 1,
+          "timeout_frames": 3600
+        },
+        {
+          "op": "wait_frames",
+          "n": 60
+        },
+        {
+          "op": "observe",
+          "name": "forest"
+        },
+        {
+          "op": "wait_frames",
+          "n": 400
+        },
+        {
+          "op": "warp",
+          "entrance": 0,
+          "scene": 0,
+          "timeout_frames": 1800
+        },
+        {
+          "op": "wait_frames",
+          "n": 600
+        },
+        {
+          "op": "observe",
+          "name": "deku_tree"
+        },
+        {
+          "op": "wait_frames",
+          "n": 120
+        },
+        {
+          "op": "quit",
+          "pass": true
+        }
+      ]
+    }
+  },
+  "assertions": [
+    {
+      "type": "each",
+      "obs": "forest",
+      "path": "has_party",
+      "op": "eq",
+      "value": true,
+      "label": "each player leads a party of their own"
+    },
+    {
+      "type": "each",
+      "obs": "forest",
+      "path": "party_size",
+      "op": "eq",
+      "value": 1,
+      "label": "the parties are separate (1 member each)"
+    },
+    {
+      "type": "each",
+      "obs": "forest",
+      "path": "peer_puppets",
+      "op": "eq",
+      "value": 1,
+      "label": "Kokiri Forest is shared: each sees the other's Link"
+    },
+    {
+      "type": "each",
+      "obs": "deku_tree",
+      "path": "scene",
+      "op": "eq",
+      "value": 0,
+      "label": "both are in the Deku Tree"
+    },
+    {
+      "type": "each",
+      "obs": "deku_tree",
+      "path": "peer_puppets",
+      "op": "eq",
+      "value": 0,
+      "label": "Private Dungeons: the other party's Link is not in this copy"
+    }
+  ]
+}

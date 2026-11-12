@@ -489,6 +489,9 @@ class ZeldaOnlineClient : public ZNetworking {
     float RollHealthMultiplier(f32 weight, f32 settingWeight) const; 
     float RollEnemyHealthMultiplier(f32 weight = 1.0f) const;
     float RollBossHealthMultiplier(f32 weight = 1.0f) const;
+    // Party "Damage Multiplier" option: how much harder enemy hits land on the local player.
+    float EnemyDamageMultiplier() const;
+    s32 ScaleEnemyDamage(s32 healthChange) const;
 };
 }
 

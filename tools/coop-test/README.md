@@ -52,12 +52,13 @@ frames):
 | `warp` | `entrance`, `scene` (waits until that scene is up), optional `cutscene` (a cutscene layer index such as 65521, like a blue warp; then it is done once the cutscene runs) |
 | `wait_scene` | `scene` |
 | `wait_until` | `cond`: `in_cutscene` (`scene`), `cutscene_done` (`scene`), `cs_received` (`n`), `connected`, `net_id`, `other_players` (`n`), `has_party`, `invite_pending`, `party_size` (`n`), `story_active` (`value`), `party_admin` (`value`), `peers_in_scene` (`n`), `peer_puppets` (`n`), `flag` (`type`, `flag`, `value`), `item` (`slot`, `value`), `ammo` (`slot`, `n`), `rupees` / `health` / `health_capacity` (`n`), `quest_bit` (`bit`, `value`), `field` (`field`, `value`, `cmp` `eq`/`ge`/`le`/`ne`), `share_ammo_setting` / `story_coop_setting` (`value`), `story_code_set`, `disconnected` |
-| `create_party` | optional `story_coop`, `share_ammo`, `private_dungeons`, `story_code` (`"auto"` generates one like the party window; omit it to let the server generate one); creates the party with those settings |
+| `create_party` | optional `story_coop`, `share_ammo`, `private_dungeons`, `damage_multiplier`, `enemy_damage_weight`, `story_code` (`"auto"` generates one like the party window; omit it to let the server generate one); creates the party with those settings |
 | `invite` | optional `name`; invites every listed player not in the party |
 | `accept_invite` | accepts the first pending invite |
 | `set_party_settings` | same fields as `create_party`; sends a settings update (admin) |
 | `teleport_to` | optional `name`; sends the "Teleport to" request for another player |
 | `kill_actor` | `id` (only 432, the Stalchild, is implemented), optional `role` (`leader` default, `any`), `wait`, `name`; lands a lethal hit on every awake actor of that id this client leads, retrying up to `wait` frames until there is one, and records where they stood as observation `name` (default `kill`) |
+| `enemy_hit` | `damage` (1/16 hearts, default 8), optional `name` (default `hit`); lands an enemy hit on Link through the player's hit response and records `before`, `after` and `lost` health |
 | `save_game`, `reload_save` | write save slot 0 through the real save manager, read it back from disk |
 | `leave_party` | |
 | `wait_frames` | `n` |
@@ -76,7 +77,7 @@ frames):
 | `boot` | loads a fresh emptied debug save again from the title screen (optional `entrance`, `age`, `reset`) |
 | `log`, `quit` | `msg` / `pass`, `error` |
 
-Every step takes `timeout_frames`; a timeout fails the scenario. Scenarios: `smoke`, `items` (shared non-consumables, per-player ammo/rupees/HP/bottle contents, Share Ammo on, Story Co-op switched off mid session), `items_off` (Story Co-op never on), `flags` (shared story flags, per-player gift flags, Weird Egg, Zelda's Letter gated on Lullaby). Cross-client sync inside a scenario uses a shared infTable flag as a signal.  Optional top-level `cvars` and per-role `cvars` set
+Every step takes `timeout_frames`; a timeout fails the scenario. Scenarios: `smoke`, `damage` (party Damage Multiplier in and out of a dungeon), `items` (shared non-consumables, per-player ammo/rupees/HP/bottle contents, Share Ammo on, Story Co-op switched off mid session), `items_off` (Story Co-op never on), `flags` (shared story flags, per-player gift flags, Weird Egg, Zelda's Letter gated on Lullaby). Cross-client sync inside a scenario uses a shared infTable flag as a signal.  Optional top-level `cvars` and per-role `cvars` set
 arbitrary CVars before the client starts.
 
 Assertion types: `each` (every client, or only `roles`, `obs`/`path`/`op`/`value`, ops `eq ne ge gt le lt truthy`), `count` (number of
@@ -127,7 +128,7 @@ is carried out of the temple about 30 frames after spawning (also offline, so un
 
 `sync_gaps` covers the state that was not shared before the audit in `STORY_COOP_SYNC_AUDIT.md`: map areas and map rooms and
 floors, the high scores and records (including the Big Poe sum with a simultaneous delivery from both clients), the fishing
-record with the per player hat bit, Epona's parking spot (the last writer wins), the scarecrow songs, the Water Temple
+record with the per player hat bit, Epona's parking spot (per player: each member keeps their own), the scarecrow songs, the Water Temple
 level walked through four changes and the Forest Temple elevator toggled twice, and the per player parts that must stay
 apart (the Running Man score, the pond owner's hat, `eventInf`, which item is on the B button). It also checks that
 Gold Skulltula tokens, the Biggoron's Sword flag, owned sword and shield bits, magic and double defense reach the other

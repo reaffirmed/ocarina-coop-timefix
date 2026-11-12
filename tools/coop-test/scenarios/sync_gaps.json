@@ -317,30 +317,6 @@
               "timeout_frames": 7200
             },
             {
-              "op": "wait_until",
-              "cond": "field",
-              "field": "horse_scene",
-              "value": 90,
-              "cmp": "eq",
-              "timeout_frames": 3600
-            },
-            {
-              "op": "wait_until",
-              "cond": "field",
-              "field": "horse_x",
-              "value": 100,
-              "cmp": "eq",
-              "timeout_frames": 3600
-            },
-            {
-              "op": "wait_until",
-              "cond": "field",
-              "field": "horse_angle",
-              "value": 77,
-              "cmp": "eq",
-              "timeout_frames": 3600
-            },
-            {
               "op": "wait_frames",
               "n": 40
             },
@@ -643,22 +619,6 @@
               "cond": "field",
               "field": "high_score:2",
               "value": 201331993,
-              "cmp": "eq",
-              "timeout_frames": 3600
-            },
-            {
-              "op": "wait_until",
-              "cond": "field",
-              "field": "horse_scene",
-              "value": 87,
-              "cmp": "eq",
-              "timeout_frames": 3600
-            },
-            {
-              "op": "wait_until",
-              "cond": "field",
-              "field": "horse_angle",
-              "value": 1234,
               "cmp": "eq",
               "timeout_frames": 3600
             },
@@ -1123,31 +1083,9 @@
           "type": "each",
           "obs": "b_phase1",
           "path": "fields.horse_scene",
-          "op": "eq",
+          "op": "ne",
           "value": 87,
-          "label": "Epona's parking scene reaches B",
-          "roles": [
-            "B"
-          ]
-        },
-        {
-          "type": "each",
-          "obs": "b_phase1",
-          "path": "fields.horse_x",
-          "op": "eq",
-          "value": -2065,
-          "label": "Epona's parking x reaches B",
-          "roles": [
-            "B"
-          ]
-        },
-        {
-          "type": "each",
-          "obs": "b_phase1",
-          "path": "fields.horse_z",
-          "op": "eq",
-          "value": 1839,
-          "label": "Epona's parking z reaches B",
+          "label": "A parking Epona does not move B's Epona (scene)",
           "roles": [
             "B"
           ]
@@ -1156,9 +1094,9 @@
           "type": "each",
           "obs": "b_phase1",
           "path": "fields.horse_angle",
-          "op": "eq",
+          "op": "ne",
           "value": 1234,
-          "label": "Epona's parking angle reaches B",
+          "label": "A parking Epona does not move B's Epona (angle)",
           "roles": [
             "B"
           ]
@@ -1359,8 +1297,8 @@
           "obs": "a_horse",
           "path": "fields.horse_scene",
           "op": "eq",
-          "value": 90,
-          "label": "the last member to park Epona decides: scene (A sees B's)",
+          "value": 87,
+          "label": "B parking Epona later does not move A's Epona: A keeps its scene",
           "roles": [
             "A"
           ]
@@ -1370,8 +1308,8 @@
           "obs": "a_horse",
           "path": "fields.horse_x",
           "op": "eq",
-          "value": 100,
-          "label": "the last member to park Epona decides: x",
+          "value": -2065,
+          "label": "A keeps its own Epona spot: x",
           "roles": [
             "A"
           ]
@@ -1381,8 +1319,8 @@
           "obs": "a_horse",
           "path": "fields.horse_z",
           "op": "eq",
-          "value": -200,
-          "label": "the last member to park Epona decides: z",
+          "value": 1839,
+          "label": "A keeps its own Epona spot: z",
           "roles": [
             "A"
           ]
@@ -1652,22 +1590,6 @@
               "cond": "field",
               "field": "high_score:2",
               "value": 201327897,
-              "cmp": "eq",
-              "timeout_frames": 3600
-            },
-            {
-              "op": "wait_until",
-              "cond": "field",
-              "field": "horse_scene",
-              "value": 90,
-              "cmp": "eq",
-              "timeout_frames": 3600
-            },
-            {
-              "op": "wait_until",
-              "cond": "field",
-              "field": "horse_x",
-              "value": 100,
               "cmp": "eq",
               "timeout_frames": 3600
             },
@@ -2002,22 +1924,6 @@
             {
               "op": "wait_until",
               "cond": "field",
-              "field": "horse_scene",
-              "value": 90,
-              "cmp": "eq",
-              "timeout_frames": 3600
-            },
-            {
-              "op": "wait_until",
-              "cond": "field",
-              "field": "horse_x",
-              "value": 100,
-              "cmp": "eq",
-              "timeout_frames": 3600
-            },
-            {
-              "op": "wait_until",
-              "cond": "field",
               "field": "scarecrow_spawn_set",
               "value": 1,
               "cmp": "eq",
@@ -2294,31 +2200,9 @@
           "type": "each",
           "obs": "a2_fields",
           "path": "fields.horse_scene",
-          "op": "eq",
+          "op": "ne",
           "value": 90,
-          "label": "after restart: Epona's parking spot is the last member's",
-          "roles": [
-            "A"
-          ]
-        },
-        {
-          "type": "each",
-          "obs": "a2_fields",
-          "path": "fields.horse_x",
-          "op": "eq",
-          "value": 100,
-          "label": "after restart: Epona's parking x",
-          "roles": [
-            "A"
-          ]
-        },
-        {
-          "type": "each",
-          "obs": "a2_fields",
-          "path": "fields.horse_angle",
-          "op": "eq",
-          "value": 77,
-          "label": "after restart: Epona's parking angle",
+          "label": "after restart: a fresh save does not take another member's Epona spot",
           "roles": [
             "A"
           ]
@@ -2525,31 +2409,9 @@
           "type": "each",
           "obs": "b2_fields",
           "path": "fields.horse_scene",
-          "op": "eq",
+          "op": "ne",
           "value": 90,
-          "label": "after restart: Epona's parking spot is the last member's",
-          "roles": [
-            "B"
-          ]
-        },
-        {
-          "type": "each",
-          "obs": "b2_fields",
-          "path": "fields.horse_x",
-          "op": "eq",
-          "value": 100,
-          "label": "after restart: Epona's parking x",
-          "roles": [
-            "B"
-          ]
-        },
-        {
-          "type": "each",
-          "obs": "b2_fields",
-          "path": "fields.horse_angle",
-          "op": "eq",
-          "value": 77,
-          "label": "after restart: Epona's parking angle",
+          "label": "after restart: a fresh save does not take another member's Epona spot",
           "roles": [
             "B"
           ]
