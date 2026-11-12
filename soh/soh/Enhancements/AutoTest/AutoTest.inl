@@ -556,6 +556,24 @@ json Observe(const json& step) {
             o["held_actor"] = p->heldActor != nullptr;
             o["link_pos"] = { p->actor.world.pos.x, p->actor.world.pos.y, p->actor.world.pos.z };
         }
+        // live menus (LiveMenus.h): whether the world runs under the pause menu and the ocarina
+        o["pause_state"] = gPlayState->pauseCtx.state;
+        o["live_pause"] = gZeldaOnlineLivePause != 0;
+        o["live_ocarina"] = ZeldaOnline_LiveOcarina() != 0;
+        o["gameplay_frames"] = gPlayState->gameplayFrames;
+        o["update_rate"] = R_UPDATE_RATE;
+        o["ocarina_mode"] = gPlayState->msgCtx.ocarinaMode;
+        {
+            // changes whenever any actor other than Link moves: a cheap "is the world running" signal
+            double posSum = 0.0;
+            for (int cat = 0; cat < ACTORCAT_MAX; cat++) {
+                if (cat == ACTORCAT_PLAYER) continue;
+                for (Actor* a = gPlayState->actorCtx.actorLists[cat].head; a != nullptr; a = a->next) {
+                    posSum += a->world.pos.x + a->world.pos.y + a->world.pos.z + a->shape.rot.y;
+                }
+            }
+            o["actor_pos_sum"] = posSum;
+        }
         if (step.contains("chests")) {
             // every chest of the loaded rooms: its flag, whether the save/actor context says it is open, and how far
             // the open animation is (a chest that spawned already open starts at the last frame)
@@ -685,6 +703,15 @@ uint16_t ButtonMask(const std::string& name) {
     if (name == "START") return BTN_START;
     if (name == "R") return BTN_R;
     if (name == "Z") return BTN_Z;
+    if (name == "L") return BTN_L;
+    if (name == "CLEFT") return BTN_CLEFT;
+    if (name == "CDOWN") return BTN_CDOWN;
+    if (name == "CRIGHT") return BTN_CRIGHT;
+    if (name == "CUP") return BTN_CUP;
+    if (name == "DUP") return BTN_DUP;
+    if (name == "DDOWN") return BTN_DDOWN;
+    if (name == "DLEFT") return BTN_DLEFT;
+    if (name == "DRIGHT") return BTN_DRIGHT;
     return 0;
 }
 
@@ -1098,6 +1125,20 @@ bool RunStep(const json& step) {
         Event("SwitchAge() called");
         SwitchAge();
         return true;
+    }
+    if (op == "equip_c") {
+        // puts the item of inventory slot `slot` on C-Left (the ocarina is slot 7)
+        if (!PlayReady()) return timedOut("equip_c: not ready");
+        int slot = step.value("slot", 7);
+        gSaveContext.equips.buttonItems[1] = gSaveContext.inventory.items[slot];
+        gSaveContext.equips.cButtonSlots[0] = slot;
+        Interface_LoadItemIcon1(gPlayState, 1);
+        return true;
+    }
+    if (op == "wait_pause") {
+        // waits until pauseCtx.state reaches `state` (6: the menu is open and takes input; 0: closed)
+        if (gPlayState != nullptr && gPlayState->pauseCtx.state == step.value("state", 6)) return true;
+        return timedOut("wait_pause: state " + std::to_string(gPlayState ? gPlayState->pauseCtx.state : -1));
     }
     if (op == "observe") {
         sState.observations.push_back(Observe(step));
