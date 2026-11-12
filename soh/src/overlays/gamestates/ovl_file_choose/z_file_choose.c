@@ -2556,6 +2556,7 @@ void FileChoose_FadeOut(GameState* thisx) {
  * Update function for `SM_LOAD_GAME`
  */
 void Sram_InitNewSave(void);
+void FileChoose_LoadGame(GameState* thisx);
 
 // SOH [ZeldaOnline] Co-op Lobby: starts the session's co-op file (SaveManager's co-op slot, set by the lobby before
 // this). With `createNew` a new file named `name` (ASCII, up to 8 characters) is made first, like a new file in slot.
