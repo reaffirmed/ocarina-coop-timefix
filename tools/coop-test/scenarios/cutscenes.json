@@ -474,6 +474,27 @@
             },
             {
               "op": "wait_until",
+              "cond": "warp_asked",
+              "timeout_frames": 1800,
+              "n": 1
+            },
+            {
+              "op": "observe",
+              "name": "asked"
+            },
+            {
+              "op": "wait_frames",
+              "n": 30
+            },
+            {
+              "op": "input",
+              "buttons": [
+                "L"
+              ],
+              "n": 1
+            },
+            {
+              "op": "wait_until",
               "cond": "cs_received",
               "n": 1,
               "timeout_frames": 2400
@@ -512,13 +533,35 @@
         {
           "type": "each",
           "obs": "after_trigger",
+          "path": "warp_holds",
+          "op": "eq",
+          "value": 1,
+          "roles": [
+            "A"
+          ],
+          "label": "A holds the warp for the vote"
+        },
+        {
+          "type": "each",
+          "obs": "asked",
+          "path": "warp_ready",
+          "op": "eq",
+          "value": false,
+          "roles": [
+            "B"
+          ],
+          "label": "B is asked whether it is ready"
+        },
+        {
+          "type": "each",
+          "obs": "after",
           "path": "cs_sent",
           "op": "ge",
           "value": 1,
           "roles": [
             "A"
           ],
-          "label": "A announces the Deku Tree cutscene"
+          "label": "A announces the Deku Tree cutscene once the vote lets it go"
         },
         {
           "type": "each",
