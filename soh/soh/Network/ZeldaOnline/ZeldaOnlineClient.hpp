@@ -192,6 +192,9 @@ class ZeldaOnlineClient : public ZNetworking {
     uint16_t m_storyCsPendingEntrance = 0;
     uint16_t m_storyCsPendingIndex = 0;
     std::string m_storyCsPendingPath;
+    int m_storyCsPromptFrames = 0; // countdown before a member's cutscene starts here (L skips it)
+    int m_storyWarpJoinFrames = 0; // this player was ready for a warp vote that just went ahead
+    int m_storyCsSkipped = 0;
 
     // Story Co-op key dialogue: the text boxes of story NPCs are shown to the members in the same scene
     bool m_storyDlgSpeaking = false;         // this player has a key conversation open
@@ -272,6 +275,7 @@ class ZeldaOnlineClient : public ZNetworking {
     void StoryEndWarpVote();
     void StorySetWarpFreeze(bool freeze);
     std::string StoryWarpText() const;
+    std::string StoryCsPromptText() const;
     void OnStoryWarpStatus(ByteStream& packet);
     void OnStoryWarpGo(ByteStream& packet);
     void StoryWatchCutscenes();
