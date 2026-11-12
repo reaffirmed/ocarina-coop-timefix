@@ -154,6 +154,22 @@ namespace ZeldaOnline
 		parsed["storyCoop"] = m_storyCoop;
 		parsed["shareAmmoRupeesHp"] = m_shareConsumables;
 		parsed["storyCode"] = m_storyCode;
+
+		// the co-op rules (friendly fire, revives, death penalty, ready check) are the admin's too
+		static const char* const kAdminOnlyKeys[] = { "friendlyFire", "deathPenalty", "rupeesLost", "darkLinkStrength",
+			"songRevive", "bottleRevive", "downedSeconds", "respawnCooldown", "readyCheck" };
+		nlohmann::json current;
+		const bool hasCurrent = !m_settings.empty() && ParseSettingsObject(m_settings, current);
+		for (const char* key : kAdminOnlyKeys)
+		{
+			const bool had = hasCurrent && current.contains(key);
+			if (parsed.contains(key) && (!had || parsed[key] != current[key]))
+				same = false;
+			if (had)
+				parsed[key] = current[key];
+			else
+				parsed.erase(key);
+		}
 		try
 		{
 			SetSettings(DumpSettings(parsed));

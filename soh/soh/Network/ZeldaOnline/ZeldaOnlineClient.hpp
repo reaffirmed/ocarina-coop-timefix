@@ -214,6 +214,57 @@ class ZeldaOnlineClient : public ZNetworking {
     int m_storyDlgShown = 0;
     int m_storyDlgTestActor = -1;            // auto-test only: the NPC a text box without a talk actor belongs to
 
+    // Co-op rules (ZeldaOnlineCoopRules.cpp): friendly fire, the downed state and revives, the death marker and Dark
+    // Link, the ready check, the respawn cooldown, the in-game Co-op menu and the join summary. All off by default.
+    struct CoopDownedMate {
+        int seconds = 0;
+        int quiet = 0; // frames since the last "down" message
+    };
+    std::unordered_map<uint32_t, CoopDownedMate> m_coopDowned; // teammates down in this scene, by network id
+    bool m_coopIsDowned = false;      // this player lies down and waits for a revive
+    int m_coopDownedFrames = 0;       // frames left before the Game Over
+    int m_coopGiveUpFrames = 0;       // B held
+    int m_coopAloneFrames = 0;        // no teammate left who could help
+    int m_coopFrame = 0;
+    bool m_coopFfHit = false;         // the current hit is friendly fire: the party damage multiplier stays out of it
+    std::string m_coopNotice;         // a short message at the bottom of the screen
+    int m_coopNoticeFrames = 0;
+    std::string m_coopHint;           // what the player can do right now (revive, give a bottle), rebuilt every frame
+    bool m_coopReadySeen = false;     // the current transition was already looked at
+    bool m_coopReadyHold = false;     // this player's held transition is a ready check
+    bool m_coopReadyVote = false;     // the vote asked here is another member's ready check
+    bool m_coopReadyWasVoting = false;
+    int m_coopReadyPass = 0;          // a ready check just went ahead: walking in after it does not ask again
+    struct CoopMarker {
+        bool has = false;
+        int scene = -1;
+        int age = 0;
+        float x = 0.0f, y = 0.0f, z = 0.0f;
+        int rupees = 0;
+    };
+    CoopMarker m_coopMarker;
+    std::string m_coopMarkerKey;      // which save the marker belongs to (one marker per save)
+    Actor* m_coopDarkLink = nullptr;  // the Dark Link guarding the marker (only in this game)
+    bool m_coopDarkLinkSpawned = false;
+    float m_coopGroundX = 0.0f, m_coopGroundY = 0.0f, m_coopGroundZ = 0.0f;
+    int m_coopGroundScene = -1;
+    bool m_coopMenuOpen = false;
+    int m_coopMenuCursor = 0;
+    int m_coopMenuStickHeld = 0;
+    struct CoopJoinSnapshot {
+        bool has = false;
+        uint8_t items[24] = {};
+        uint16_t equipment = 0;
+        uint32_t upgrades = 0;
+        uint32_t questItems = 0;
+        int16_t healthCapacity = 0;
+        int8_t magicLevel = 0;
+    };
+    bool m_coopJoinArmed = false;
+    int m_coopJoinArmedFrames = 0;
+    std::vector<std::string> m_coopJoinList;
+    int m_coopJoinFrames = 0;
+
   public:
     // Co-op Lobby (ZeldaOnlineLobby.cpp): the game hosts or joins through OOTSteamLink and the party forms by itself
     enum class LobbyRole { None, Host, Join };
@@ -298,6 +349,27 @@ class ZeldaOnlineClient : public ZNetworking {
     void StoryReleaseDialogue();
     void OnStoryDialogue(ByteStream& packet);
     void OnStoryCutscene(ByteStream& packet);
+
+    void CoopRegisterHooks(bool enabled);
+    void CoopUpdate();
+    void CoopWatchReadyCheck();
+    void CoopOnSceneTrigger(AbstractActorController* sendingPlayer, const std::string& name, ByteStream& data);
+    void CoopDrawOverlay(GraphicsContext* gfxCtx);
+    void CoopMenuInput();
+    void CoopOnSaveChanged(bool loaded);
+    void CoopOnSceneInit();
+    void CoopUpdateDowned(PlayState* play, Player* player);
+    void CoopUpdateMarker(PlayState* play, Player* player);
+    void CoopEndDowned(bool gameOver);
+    void CoopRevive(uint32_t target, uint8_t kind, int16_t health);
+    void CoopShowNotice(const std::string& text, int seconds = 4);
+    void CoopLoadMarker();
+    void CoopSaveMarker();
+    bool CoopMateCanHelp() const;
+    bool CoopOtherMemberInScene() const;
+    std::string CoopReadyText() const;
+    CoopJoinSnapshot CoopCaptureJoin() const;
+    void CoopDiffJoin(const CoopJoinSnapshot& before);
 
 
   public:
@@ -390,6 +462,7 @@ class ZeldaOnlineClient : public ZNetworking {
     }
 
 
+    void SetNickname(const std::string& name);
     int MyNetworkID() const {
         return m_myNetworkID;
     }
@@ -492,6 +565,26 @@ class ZeldaOnlineClient : public ZNetworking {
     // Party "Damage Multiplier" option: how much harder enemy hits land on the local player.
     float EnemyDamageMultiplier() const;
     s32 ScaleEnemyDamage(s32 healthChange) const;
+
+    // Co-op rules, called from the game (ZeldaOnlineCoopRules.cpp)
+    const PartySettings& CurrentPartySettings() const {
+        return m_partySettings;
+    }
+    bool CoopRulesActive() const;
+    // Teammates' swords, arrows, seeds and boomerangs can hit this player: the old PvP switch, or Story Co-op
+    // friendly fire.
+    bool HitsTeammates() const;
+    bool CoopFriendlyFireHit(Player* player, Actor* attacker);
+    bool CoopTakeFriendlyFireHit() {
+        bool hit = m_coopFfHit;
+        m_coopFfHit = false;
+        return hit;
+    }
+    bool CoopEnterDowned(PlayState* play, Player* player);
+    void CoopTrySongRevive();
+    bool CoopGiveBottle(PlayState* play, Player* player, s32 itemAction);
+    void CoopOnGameOver(PlayState* play);
+    s16 CoopRespawnCooldownFrames() const;
 };
 }
 

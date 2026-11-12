@@ -1,0 +1,862 @@
+{
+ "name": "coop_rules",
+ "server": {
+  "host": "127.0.0.1",
+  "port": 21650
+ },
+ "boot": {
+  "entrance": 187,
+  "age": "child"
+ },
+ "roles": {
+  "A": {
+   "name": "TestA",
+   "steps": [
+    {
+     "op": "wait_play",
+     "timeout_frames": 1800
+    },
+    {
+     "op": "connect"
+    },
+    {
+     "op": "wait_until",
+     "cond": "connected",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "wait_until",
+     "cond": "net_id",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "warp",
+     "entrance": 238,
+     "scene": 85,
+     "timeout_frames": 1800
+    },
+    {
+     "op": "wait_until",
+     "cond": "other_players",
+     "n": 1,
+     "timeout_frames": 3600
+    },
+    {
+     "op": "create_party",
+     "story_coop": true,
+     "story_code": "coop-rules",
+     "coop_rules": {
+      "friendlyFire": 1,
+      "songRevive": true,
+      "bottleRevive": true,
+      "downedSeconds": 30,
+      "deathPenalty": 1,
+      "rupeesLost": 2,
+      "respawnCooldown": 5,
+      "readyCheck": true
+     }
+    },
+    {
+     "op": "wait_until",
+     "cond": "has_party",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "wait_until",
+     "cond": "story_active",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "invite"
+    },
+    {
+     "op": "wait_until",
+     "cond": "party_size",
+     "n": 2,
+     "timeout_frames": 3600
+    },
+    {
+     "op": "wait_until",
+     "cond": "peers_in_scene",
+     "n": 1,
+     "timeout_frames": 3600
+    },
+    {
+     "op": "wait_until",
+     "cond": "peer_puppets",
+     "n": 1,
+     "timeout_frames": 1800
+    },
+    {
+     "op": "wait_frames",
+     "n": 60
+    },
+    {
+     "op": "set_field",
+     "field": "magic_acquired",
+     "value": 1
+    },
+    {
+     "op": "set_field",
+     "field": "magic_level",
+     "value": 1
+    },
+    {
+     "op": "set_field",
+     "field": "magic",
+     "value": 48
+    },
+    {
+     "op": "observe",
+     "name": "a_rules"
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "coop_downed_mates",
+     "value": 1,
+     "cmp": "ge",
+     "timeout_frames": 2400
+    },
+    {
+     "op": "wait_frames",
+     "n": 20
+    },
+    {
+     "op": "observe",
+     "name": "a_sees_down"
+    },
+    {
+     "op": "approach_peer",
+     "dist": 60
+    },
+    {
+     "op": "wait_frames",
+     "n": 10
+    },
+    {
+     "op": "coop_song"
+    },
+    {
+     "op": "wait_frames",
+     "n": 80
+    },
+    {
+     "op": "observe",
+     "name": "a_after_song"
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "coop_downed_mates",
+     "value": 0,
+     "cmp": "eq",
+     "timeout_frames": 600
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "coop_downed_mates",
+     "value": 1,
+     "cmp": "ge",
+     "timeout_frames": 2400
+    },
+    {
+     "op": "wait_frames",
+     "n": 20
+    },
+    {
+     "op": "approach_peer",
+     "dist": 50
+    },
+    {
+     "op": "wait_frames",
+     "n": 5
+    },
+    {
+     "op": "coop_bottle",
+     "item": 24,
+     "name": "a_fairy"
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "coop_downed_mates",
+     "value": 0,
+     "cmp": "eq",
+     "timeout_frames": 600
+    },
+    {
+     "op": "wait_frames",
+     "n": 240
+    },
+    {
+     "op": "approach_peer",
+     "dist": 50
+    },
+    {
+     "op": "wait_frames",
+     "n": 5
+    },
+    {
+     "op": "coop_bottle",
+     "item": 21,
+     "name": "a_red"
+    },
+    {
+     "op": "wait_frames",
+     "n": 200
+    },
+    {
+     "op": "observe",
+     "name": "a_before_ready"
+    },
+    {
+     "op": "warp",
+     "entrance": 0,
+     "scene": 0,
+     "timeout_frames": 3600
+    },
+    {
+     "op": "observe",
+     "name": "a_in_dungeon"
+    },
+    {
+     "op": "wait_frames",
+     "n": 400
+    },
+    {
+     "op": "quit",
+     "pass": true
+    }
+   ]
+  },
+  "B": {
+   "name": "TestB",
+   "steps": [
+    {
+     "op": "wait_play",
+     "timeout_frames": 1800
+    },
+    {
+     "op": "connect"
+    },
+    {
+     "op": "wait_until",
+     "cond": "connected",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "wait_until",
+     "cond": "net_id",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "warp",
+     "entrance": 238,
+     "scene": 85,
+     "timeout_frames": 1800
+    },
+    {
+     "op": "wait_until",
+     "cond": "invite_pending",
+     "timeout_frames": 7200
+    },
+    {
+     "op": "accept_invite"
+    },
+    {
+     "op": "wait_until",
+     "cond": "has_party",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "wait_until",
+     "cond": "story_active",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "wait_until",
+     "cond": "party_size",
+     "n": 2,
+     "timeout_frames": 3600
+    },
+    {
+     "op": "wait_until",
+     "cond": "peers_in_scene",
+     "n": 1,
+     "timeout_frames": 3600
+    },
+    {
+     "op": "wait_until",
+     "cond": "peer_puppets",
+     "n": 1,
+     "timeout_frames": 1800
+    },
+    {
+     "op": "wait_frames",
+     "n": 60
+    },
+    {
+     "op": "observe",
+     "name": "b_rules"
+    },
+    {
+     "op": "set_health",
+     "health": 96
+    },
+    {
+     "op": "peer_hit",
+     "damage": 32,
+     "name": "ff_half"
+    },
+    {
+     "op": "wait_frames",
+     "n": 40
+    },
+    {
+     "op": "set_health",
+     "health": 20
+    },
+    {
+     "op": "peer_hit",
+     "damage": 32,
+     "name": "ff_floor"
+    },
+    {
+     "op": "wait_frames",
+     "n": 40
+    },
+    {
+     "op": "set_health",
+     "health": 16
+    },
+    {
+     "op": "peer_hit",
+     "damage": 32,
+     "name": "ff_last_heart"
+    },
+    {
+     "op": "wait_frames",
+     "n": 40
+    },
+    {
+     "op": "set_slot",
+     "slot": 18,
+     "item": 255
+    },
+    {
+     "op": "set_slot",
+     "slot": 19,
+     "item": 255
+    },
+    {
+     "op": "set_slot",
+     "slot": 20,
+     "item": 255
+    },
+    {
+     "op": "set_slot",
+     "slot": 21,
+     "item": 255
+    },
+    {
+     "op": "set_health",
+     "health": 16
+    },
+    {
+     "op": "enemy_hit",
+     "damage": 32,
+     "name": "kill"
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "coop_downed",
+     "value": 1,
+     "cmp": "eq",
+     "timeout_frames": 200
+    },
+    {
+     "op": "observe",
+     "name": "b_downed"
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "coop_downed",
+     "value": 0,
+     "cmp": "eq",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "player_dead",
+     "value": 0,
+     "cmp": "eq",
+     "timeout_frames": 400
+    },
+    {
+     "op": "wait_frames",
+     "n": 120
+    },
+    {
+     "op": "observe",
+     "name": "b_after_song"
+    },
+    {
+     "op": "wait_frames",
+     "n": 60
+    },
+    {
+     "op": "set_slot",
+     "slot": 18,
+     "item": 255
+    },
+    {
+     "op": "set_slot",
+     "slot": 19,
+     "item": 255
+    },
+    {
+     "op": "set_slot",
+     "slot": 20,
+     "item": 255
+    },
+    {
+     "op": "set_slot",
+     "slot": 21,
+     "item": 255
+    },
+    {
+     "op": "set_health",
+     "health": 16
+    },
+    {
+     "op": "enemy_hit",
+     "damage": 32,
+     "name": "kill"
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "coop_downed",
+     "value": 1,
+     "cmp": "eq",
+     "timeout_frames": 200
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "coop_downed",
+     "value": 0,
+     "cmp": "eq",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "player_dead",
+     "value": 0,
+     "cmp": "eq",
+     "timeout_frames": 400
+    },
+    {
+     "op": "wait_frames",
+     "n": 120
+    },
+    {
+     "op": "observe",
+     "name": "b_after_fairy"
+    },
+    {
+     "op": "set_health",
+     "health": 32
+    },
+    {
+     "op": "wait_until",
+     "cond": "health_capacity",
+     "n": 16,
+     "timeout_frames": 10
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "health",
+     "value": 64,
+     "cmp": "ge",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "wait_frames",
+     "n": 120
+    },
+    {
+     "op": "observe",
+     "name": "b_after_red"
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "coop_ready_vote",
+     "value": 1,
+     "cmp": "eq",
+     "timeout_frames": 2400
+    },
+    {
+     "op": "wait_frames",
+     "n": 20
+    },
+    {
+     "op": "observe",
+     "name": "b_ready_vote"
+    },
+    {
+     "op": "input",
+     "buttons": [
+      "L"
+     ],
+     "n": 2
+    },
+    {
+     "op": "wait_frames",
+     "n": 60
+    },
+    {
+     "op": "observe",
+     "name": "b_ready_sent"
+    },
+    {
+     "op": "wait_frames",
+     "n": 300
+    },
+    {
+     "op": "observe",
+     "name": "b_after_ready"
+    },
+    {
+     "op": "set_rupees",
+     "n": 100
+    },
+    {
+     "op": "set_slot",
+     "slot": 18,
+     "item": 255
+    },
+    {
+     "op": "set_slot",
+     "slot": 19,
+     "item": 255
+    },
+    {
+     "op": "set_slot",
+     "slot": 20,
+     "item": 255
+    },
+    {
+     "op": "set_slot",
+     "slot": 21,
+     "item": 255
+    },
+    {
+     "op": "set_health",
+     "health": 16
+    },
+    {
+     "op": "enemy_hit",
+     "damage": 32,
+     "name": "kill"
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "game_over_state",
+     "value": 3,
+     "cmp": "eq",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "observe",
+     "name": "b_go_delay"
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "game_over_state",
+     "value": 4,
+     "cmp": "eq",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "observe",
+     "name": "b_go_menu"
+    },
+    {
+     "op": "wait_frames",
+     "n": 20
+    },
+    {
+     "op": "observe",
+     "name": "b_marker"
+    },
+    {
+     "op": "quit",
+     "pass": true
+    }
+   ]
+  }
+ },
+ "assertions": [
+  {
+   "type": "each",
+   "obs": "a_rules",
+   "path": "coop.friendlyFire",
+   "op": "eq",
+   "value": 1,
+   "roles": [
+    "A"
+   ],
+   "label": "host has the rules"
+  },
+  {
+   "type": "each",
+   "obs": "b_rules",
+   "path": "coop.friendlyFire",
+   "op": "eq",
+   "value": 1,
+   "roles": [
+    "B"
+   ],
+   "label": "joiner got the rules from the party"
+  },
+  {
+   "type": "each",
+   "obs": "b_rules",
+   "path": "coop.readyCheck",
+   "op": "eq",
+   "value": true,
+   "roles": [
+    "B"
+   ],
+   "label": "joiner got ready check on"
+  },
+  {
+   "type": "each",
+   "obs": "ff_half",
+   "path": "lost",
+   "op": "eq",
+   "value": 16,
+   "roles": [
+    "B"
+   ],
+   "label": "Light friendly fire halves a 2 heart hit"
+  },
+  {
+   "type": "each",
+   "obs": "ff_floor",
+   "path": "after",
+   "op": "eq",
+   "value": 16,
+   "roles": [
+    "B"
+   ],
+   "label": "Light friendly fire leaves the last heart"
+  },
+  {
+   "type": "each",
+   "obs": "ff_last_heart",
+   "path": "allowed",
+   "op": "eq",
+   "value": false,
+   "roles": [
+    "B"
+   ],
+   "label": "Light friendly fire drops a hit on the last heart"
+  },
+  {
+   "type": "each",
+   "obs": "b_downed",
+   "path": "coop.downed",
+   "op": "eq",
+   "value": true,
+   "roles": [
+    "B"
+   ],
+   "label": "a death with a teammate near goes down instead"
+  },
+  {
+   "type": "each",
+   "obs": "b_downed",
+   "path": "coop.game_over_state",
+   "op": "eq",
+   "value": 0,
+   "roles": [
+    "B"
+   ],
+   "label": "no Game Over while downed"
+  },
+  {
+   "type": "each",
+   "obs": "a_sees_down",
+   "path": "coop.downed_mates",
+   "op": "eq",
+   "value": 1,
+   "roles": [
+    "A"
+   ],
+   "label": "teammate sees the downed player"
+  },
+  {
+   "type": "each",
+   "obs": "a_after_song",
+   "path": "coop.magic",
+   "op": "eq",
+   "value": 0,
+   "roles": [
+    "A"
+   ],
+   "label": "Lullaby revive costs 48 magic"
+  },
+  {
+   "type": "each",
+   "obs": "b_after_song",
+   "path": "health",
+   "op": "eq",
+   "value": 48,
+   "roles": [
+    "B"
+   ],
+   "label": "Lullaby revive gives 3 hearts"
+  },
+  {
+   "type": "each",
+   "obs": "a_fairy",
+   "path": "given",
+   "op": "eq",
+   "value": true,
+   "roles": [
+    "A"
+   ],
+   "label": "fairy given to the downed teammate"
+  },
+  {
+   "type": "each",
+   "obs": "a_fairy",
+   "path": "slot_after",
+   "op": "eq",
+   "value": 20,
+   "roles": [
+    "A"
+   ],
+   "label": "bottle is empty after giving the fairy"
+  },
+  {
+   "type": "each",
+   "obs": "b_after_fairy",
+   "path": "health",
+   "op": "eq",
+   "value": 128,
+   "roles": [
+    "B"
+   ],
+   "label": "fairy revive gives 8 hearts"
+  },
+  {
+   "type": "each",
+   "obs": "a_red",
+   "path": "given",
+   "op": "eq",
+   "value": true,
+   "roles": [
+    "A"
+   ],
+   "label": "red potion given to a teammate who is up"
+  },
+  {
+   "type": "rel",
+   "a": {
+    "role": "B",
+    "obs": "b_after_red",
+    "path": "health_capacity"
+   },
+   "b": {
+    "role": "B",
+    "obs": "b_after_red",
+    "path": "health"
+   },
+   "op": "eq",
+   "label": "red potion fully heals the teammate"
+  },
+  {
+   "type": "each",
+   "obs": "b_ready_vote",
+   "path": "coop.ready_vote",
+   "op": "eq",
+   "value": true,
+   "roles": [
+    "B"
+   ],
+   "label": "joiner is asked for the ready check"
+  },
+  {
+   "type": "each",
+   "obs": "a_in_dungeon",
+   "path": "scene",
+   "op": "eq",
+   "value": 0,
+   "roles": [
+    "A"
+   ],
+   "label": "host goes into the Deku Tree after the ready check"
+  },
+  {
+   "type": "rel",
+   "a": {
+    "role": "B",
+    "obs": "b_go_delay",
+    "path": "frame"
+   },
+   "b": {
+    "role": "B",
+    "obs": "b_go_menu",
+    "path": "frame"
+   },
+   "min_delta": 115,
+   "label": "5 second respawn cooldown before the Game Over menu"
+  },
+  {
+   "type": "each",
+   "obs": "b_marker",
+   "path": "coop.marker",
+   "op": "eq",
+   "value": true,
+   "roles": [
+    "B"
+   ],
+   "label": "Game Over leaves a death marker"
+  },
+  {
+   "type": "each",
+   "obs": "b_marker",
+   "path": "coop.marker_rupees",
+   "op": "eq",
+   "value": 50,
+   "roles": [
+    "B"
+   ],
+   "label": "marker holds half the rupees"
+  },
+  {
+   "type": "each",
+   "obs": "b_marker",
+   "path": "rupees",
+   "op": "eq",
+   "value": 50,
+   "roles": [
+    "B"
+   ],
+   "label": "half the rupees are taken"
+  }
+ ]
+}

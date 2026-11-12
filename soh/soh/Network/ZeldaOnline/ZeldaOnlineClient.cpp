@@ -79,7 +79,7 @@ static void Messagebox_ShowErrorBox(const char* title, const char* body) {
     Extractor::ShowErrorBox(title, body);
 }
 
-static void DrawScreenText(GraphicsContext* gfxCtx, const char* text, s16 x, s16 y, Color_RGBA8 color, f32 scale) {
+void DrawScreenText(GraphicsContext* gfxCtx, const char* text, s16 x, s16 y, Color_RGBA8 color, f32 scale) {
     if (text == nullptr || scale <= 0.0f) {
         return;
     }
@@ -318,20 +318,7 @@ void ZeldaOnlineClient::Enable() {
 
             case PlayerListAction::ChangeName: {
                 auto* textAction = reinterpret_cast<const PlayerListActionEventText*>(e);
-                m_nickName = textAction->text;
-
-                if (gPlayState) {
-                    NameTag_RemoveAllByActorTag(&GET_PLAYER(gPlayState)->actor, "name");
-                    NameTagOptions options{};
-                    options.tag = "name";
-                    options.textColor =  Color_RGBA8{ 255, 255, 255, 255 };
-
-                    NameTag_RegisterForActorWithOptions(&GET_PLAYER(gPlayState)->actor, m_nickName.c_str(), options);
-                    m_removeNametagTimer = 20 * 5;
-                }
-                ZeldaOnlineRoomWindow::Instance->SetDisplayName("");
-                CVarSetString("gZeldaOnline.Nickname", m_nickName.c_str());
-                Ship::Context::GetRawInstance()->GetWindow()->GetGui()->SaveConsoleVariablesNextFrame();
+                SetNickname(textAction->text);
                 break;
             }
 
@@ -526,6 +513,7 @@ std::string ZeldaOnlineClient::BuildPartySettingsJSON(const PartySettings& party
     settings["storyCoop"] = partySettings.storyCoop;
     settings["shareAmmoRupeesHp"] = partySettings.shareAmmoRupeesHp;
     settings["storyCode"] = partySettings.storyCode;
+    WriteCoopRulesJSON(partySettings, settings);
 
     return settings.dump();
 }
@@ -549,6 +537,7 @@ bool ZeldaOnlineClient::ParsePartySettingsJSON(const std::string& partySettings,
     out.storyCode = settings.value("storyCode", std::string());
     if (out.storyCode.size() > 32)
         out.storyCode.resize(32);
+    ReadCoopRulesJSON(settings, out);
 
     if (out.extraEnemyWeight < 0.0f)
         out.extraEnemyWeight = 0.0f;
@@ -2037,6 +2026,25 @@ void ZeldaOnlineClient::SendPacket_PlayerUpdate() {
     
 }
 
+// The player's name: saved for next time, shown over Link for a moment and sent to the others (UpdateAppearance).
+void ZeldaOnlineClient::SetNickname(const std::string& name) {
+    if (name.empty())
+        return;
+    m_nickName = name;
+    if (gPlayState) {
+        NameTag_RemoveAllByActorTag(&GET_PLAYER(gPlayState)->actor, "name");
+        NameTagOptions options{};
+        options.tag = "name";
+        options.textColor = Color_RGBA8{ 255, 255, 255, 255 };
+        NameTag_RegisterForActorWithOptions(&GET_PLAYER(gPlayState)->actor, m_nickName.c_str(), options);
+        m_removeNametagTimer = 20 * 5;
+    }
+    if (ZeldaOnlineRoomWindow::Instance != nullptr)
+        ZeldaOnlineRoomWindow::Instance->SetDisplayName("");
+    CVarSetString("gZeldaOnline.Nickname", m_nickName.c_str());
+    Ship::Context::GetRawInstance()->GetWindow()->GetGui()->SaveConsoleVariablesNextFrame();
+}
+
 void ZeldaOnlineClient::DrawOverlay(GraphicsContext* gfxCtx) {
     if (!isConnected)
         DrawScreenText(gfxCtx, "Disconnected", 5, 5, { 255, 64, 64, 255 }, 0.5f);
@@ -2048,7 +2056,10 @@ void ZeldaOnlineClient::DrawOverlay(GraphicsContext* gfxCtx) {
     if (m_storyHold)
         DrawScreenText(gfxCtx, StoryHoldText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
     else if (m_storyWarpHold || m_storyWarpVoting)
-        DrawScreenText(gfxCtx, StoryWarpText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
+        DrawScreenText(gfxCtx, ((m_storyWarpHold && m_coopReadyHold) || (!m_storyWarpHold && m_coopReadyVote))
+                                   ? CoopReadyText().c_str()
+                                   : StoryWarpText().c_str(),
+                       12, 170, { 255, 255, 255, 255 }, 0.45f);
     else if (m_storyCsHasPending && m_storyCsPromptFrames > 0)
         DrawScreenText(gfxCtx, StoryCsPromptText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
 }
@@ -2226,8 +2237,14 @@ void ZeldaOnlineClient::RegisterHooks(bool enabled) {
 
     // Story Co-op: these only mark the progress snapshot dirty, StoryUpdate does the work
     COND_HOOK(OnItemReceive, enabled, [&](GetItemEntry itemEntry) { StoryOnItemReceive(itemEntry); });
-    COND_HOOK(OnLoadGame, enabled, [&](int32_t) { StoryOnSaveChanged(true); });
-    COND_HOOK(OnExitGame, enabled, [&](int32_t) { StoryOnSaveChanged(false); });
+    COND_HOOK(OnLoadGame, enabled, [&](int32_t) {
+        StoryOnSaveChanged(true);
+        CoopOnSaveChanged(true);
+    });
+    COND_HOOK(OnExitGame, enabled, [&](int32_t) {
+        StoryOnSaveChanged(false);
+        CoopOnSaveChanged(false);
+    });
     COND_HOOK(OnFlagSet, enabled, [&](s16, s16) { StoryMarkDirty(); });
     COND_HOOK(OnSceneFlagSet, enabled, [&](s16 sceneNum, s16 flagType, s16 flag) {
         StoryOnDungeonFlag(sceneNum, flagType, flag, true);
@@ -2562,6 +2579,7 @@ void ZeldaOnlineClient::RegisterHooks(bool enabled) {
         }
     });
     RegisterActorHooks(enabled);
+    CoopRegisterHooks(enabled);
 }
 
 void ZeldaOnlineClient::OnActorKill(Actor* actor) {
@@ -2612,6 +2630,7 @@ void ZeldaOnlineClient::OnGameFrameUpdate() {
     auto localPlayer = GET_PLAYER(gPlayState);
 
     StoryUpdate();
+    CoopUpdate();
     SendTimeFlowsIfChanged();
 
    // ReportBandwidth();
@@ -2824,6 +2843,7 @@ void ZeldaOnlineClient::InitPuppetPlayer(Actor* actor) {
 
 void ZeldaOnlineClient::OnSceneInited(int sceneNum) {
     StoryOnSceneInit();
+    CoopOnSceneInit();
     m_sceneLoadedAtNight = gSaveContext.nightFlag != 0;
     m_sceneLockedDoorFlags = 0U;
     m_savedSwch = 0U;
@@ -3401,6 +3421,9 @@ extern "C" int ZeldaOnlineClient_RequestRoomSceneChange(int freshLoad) {
 extern "C" s32 ZeldaOnline_ScaleEnemyDamage(s32 healthChange) {
     auto* client = ZeldaOnline::ZeldaOnlineClient::Instance;
     if (client == nullptr || !client->isConnected)
+        return healthChange;
+    // a teammate's hit under the friendly fire rules is not an enemy hit
+    if (client->CoopTakeFriendlyFireHit())
         return healthChange;
     return client->ScaleEnemyDamage(healthChange);
 }

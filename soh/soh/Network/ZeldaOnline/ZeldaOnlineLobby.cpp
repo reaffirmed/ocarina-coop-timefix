@@ -5,6 +5,7 @@
 #include "ZeldaOnlineRoomWindow.hpp"
 #include "PartySettings.hpp"
 #include "soh/Enhancements/AutoTest/AutoTest.h"
+#include "soh/SaveManager.h"
 
 #include <ship/Context.h>
 #include <ship/window/Window.h>
@@ -49,6 +50,8 @@ static std::string FormatDate(int64_t t) {
 }
 
 static std::string FileLabel(int fileNum) {
+    if (fileNum == SaveManager::CoopFileNum)
+        return "your co-op file";
     return fileNum >= 0 ? "File " + std::to_string(fileNum + 1) : "";
 }
 
@@ -71,11 +74,13 @@ static PartySettings SettingsFromCVars() {
 }
 
 static nlohmann::json SettingsToJson(const PartySettings& s) {
-    return { { "privateDungeons", s.privateDungeons },     { "extraEnemies", s.extraEnemies },
+    nlohmann::json j = { { "privateDungeons", s.privateDungeons },     { "extraEnemies", s.extraEnemies },
              { "extraEnemyWeight", s.extraEnemyWeight },   { "healthMultiplier", s.healthMultiplier },
              { "enemyHealthWeight", s.enemyHealthWeight }, { "bossHealthWeight", s.bossHealthWeight },
              { "damageMultiplier", s.damageMultiplier },   { "enemyDamageWeight", s.enemyDamageWeight },
              { "shareAmmoRupeesHp", s.shareAmmoRupeesHp } };
+    WriteCoopRulesJSON(s, j);
+    return j;
 }
 
 static PartySettings SettingsFromJson(const nlohmann::json& j) {
@@ -91,6 +96,7 @@ static PartySettings SettingsFromJson(const nlohmann::json& j) {
     s.damageMultiplier = j.value("damageMultiplier", s.damageMultiplier);
     s.enemyDamageWeight = std::clamp(j.value("enemyDamageWeight", s.enemyDamageWeight), 0.0f, 5.0f);
     s.shareAmmoRupeesHp = j.value("shareAmmoRupeesHp", s.shareAmmoRupeesHp);
+    ReadCoopRulesJSON(j, s);
     return s;
 }
 
@@ -294,6 +300,107 @@ int CoopLobbyWindow::LastFileForSession() {
     return -1;
 }
 
+std::string CoopLobbyWindow::PlayerName() const {
+    return CVarGetString("gZeldaOnline.Nickname", "Player");
+}
+
+void CoopLobbyWindow::SetPlayerName(const std::string& name) {
+    if (name.empty())
+        return;
+    snprintf(m_nameBuffer, sizeof(m_nameBuffer), "%s", name.c_str());
+    if (Client() != nullptr) {
+        Client()->SetNickname(name);
+    } else {
+        CVarSetString("gZeldaOnline.Nickname", name.c_str());
+        SaveCVarsSoon();
+    }
+}
+
+// ---------------------------------------------------------------------------------------------- co-op save files
+
+// Letters, digits, '-' and '_' only: the name is a file name.
+static std::string SafeFilePart(const std::string& text) {
+    std::string out;
+    for (char c : text) {
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_')
+            out += c;
+        if (out.size() >= 40)
+            break;
+    }
+    return out;
+}
+
+std::filesystem::path CoopLobbyWindow::CoopFilePath() {
+    const std::filesystem::path dir =
+        std::filesystem::path(Ship::Context::GetPathRelativeToAppDirectory("Save")) / "coop";
+    if (IsHosting()) {
+        const std::string code = SafeFilePart(m_activeCode);
+        return code.empty() ? std::filesystem::path() : dir / ("host-" + code + ".sav");
+    }
+    ZeldaOnlineClient* client = Client();
+    if (client == nullptr || client->PartyID() == 0)
+        return {};
+    std::string key = SafeFilePart(client->CurrentPartySettings().storyCode);
+    if (key.empty())
+        key = SafeFilePart(m_connectedTo);
+    return key.empty() ? std::filesystem::path() : dir / ("join-" + key + ".sav");
+}
+
+bool CoopLobbyWindow::CoopFileExists() {
+    const std::filesystem::path path = CoopFilePath();
+    std::error_code ec;
+    return !path.empty() && std::filesystem::exists(path, ec);
+}
+
+bool CoopLobbyWindow::PrepareCoopFile() {
+    const std::filesystem::path path = CoopFilePath();
+    if (path.empty())
+        return false;
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+    if (SaveManager::Instance->CoopFile() != path)
+        SaveManager::Instance->SetCoopFile(path);
+    if (!std::filesystem::exists(path, ec))
+        return false;
+    if (!SaveManager::Instance->fileMetaInfo[SaveManager::CoopFileNum].valid)
+        SaveManager::Instance->LoadCoopMeta();
+    return true;
+}
+
+bool CoopLobbyWindow::CopySoloFile(int slot, std::string& error) {
+    const std::filesystem::path path = CoopFilePath();
+    if (path.empty() || slot < 0 || slot >= SaveManager::MaxFiles) {
+        error = "The party is not ready yet.";
+        return false;
+    }
+    const std::filesystem::path solo = SaveManager::Instance->SlotFileName(slot);
+    std::error_code ec;
+    if (!std::filesystem::exists(solo, ec)) {
+        error = "File " + std::to_string(slot + 1) + " is empty.";
+        return false;
+    }
+    SaveManager::Instance->ThreadPoolWait();
+    std::filesystem::create_directories(path.parent_path(), ec);
+    if (std::filesystem::exists(path, ec)) {
+        std::filesystem::path backup = path;
+        backup += ".bak";
+        std::filesystem::copy_file(path, backup, std::filesystem::copy_options::overwrite_existing, ec);
+        if (ec) {
+            error = "Could not keep a backup of the co-op file: " + ec.message();
+            return false;
+        }
+    }
+    // the solo file is only read
+    std::filesystem::copy_file(solo, path, std::filesystem::copy_options::overwrite_existing, ec);
+    if (ec) {
+        error = "Could not copy File " + std::to_string(slot + 1) + ": " + ec.message();
+        return false;
+    }
+    SaveManager::Instance->SetCoopFile(path);
+    SaveManager::Instance->LoadCoopMeta();
+    return true;
+}
+
 std::string CoopLobbyWindow::SteamProblem() {
     static int checked = -1; // the folder does not change while the game runs
     static std::string problem;
@@ -438,6 +545,9 @@ void CoopLobbyWindow::Draw() {
     }
     UpdateAutoShow();
     RecordSaveFile();
+    // nobody picked a name yet: the Steam name is a better start than "Player"
+    if (!m_helper.steamName.empty() && CVarGetString("gZeldaOnline.Nickname", "")[0] == '\0')
+        SetPlayerName(m_helper.steamName.substr(0, 32));
 
     if (m_helper.state == CoopLobbyHelper::State::Ready && !m_clientStarted && !m_stopping)
         ConnectClient();
@@ -653,6 +763,61 @@ bool CoopLobbyWindow::DrawStorySettings(PartySettings& s) {
     }
     ImGui::EndDisabled();
 
+    // Co-op rules (ZeldaOnlineCoopRules.cpp), the same ones the in-game lobby offers
+    ImGui::Spacing();
+    ImGui::TextDisabled("Co-op rules (all off by default)");
+    auto combo = [&](const char* label, int* v, const char* const* names, int count, const char* help) {
+        ImGui::SetNextItemWidth(160.0f);
+        bool c = ImGui::Combo(label, v, names, count);
+        tooltip(help);
+        return c;
+    };
+    static const char* const kFf[] = { "Off", "Light", "Full" };
+    changed |= combo("Friendly fire", &s.friendlyFire, kFf, 3,
+                     "Swords, arrows, seeds and boomerangs hurt teammates.\n"
+                     "Light: half damage and never the last heart. Never during cutscenes, text or votes.");
+    changed |= ImGui::Checkbox("Revive with Zelda's Lullaby", &s.songRevive);
+    tooltip("A player who dies lies down for a while. A teammate next to them plays Zelda's Lullaby\n"
+            "(48 magic) to get them up with 3 hearts.");
+    changed |= ImGui::Checkbox("Revive and heal with bottles", &s.bottleRevive);
+    tooltip("Use a bottle next to a teammate to give it to them. Fairy: revive with 8 hearts.\n"
+            "Red potion: revive or heal fully. Blue potion: same, plus magic. Green potion: magic.\n"
+            "Milk: 5 hearts, no revive.");
+    if (s.DownedEnabled()) {
+        ImGui::Indent();
+        int downed = s.downedSeconds >= 45 ? 1 : 0;
+        static const char* const kDowned[] = { "30 seconds", "60 seconds" };
+        if (combo("Time to revive", &downed, kDowned, 2, "How long a downed player waits before the Game Over.\n"
+                                                         "Hold B to give up sooner.")) {
+            s.downedSeconds = downed == 1 ? 60 : 30;
+            changed = true;
+        }
+        ImGui::Unindent();
+    }
+    static const char* const kPenalty[] = { "Off", "Marker", "Marker + Dark Link" };
+    changed |= combo("Death penalty", &s.deathPenalty, kPenalty, 3,
+                     "Marker: a Game Over leaves some of your rupees where you fell. Go back to pick them up.\n"
+                     "Dark Link: as adult, Dark Link guards the marker. He is only in your game.");
+    if (s.deathPenalty != DEATH_PENALTY_OFF) {
+        ImGui::Indent();
+        static const char* const kRupees[] = { "None", "A quarter", "Half", "All" };
+        changed |= combo("Rupees lost", &s.rupeesLost, kRupees, 4, "The share of rupees left in the marker.");
+        if (s.deathPenalty == DEATH_PENALTY_DARK_LINK) {
+            static const char* const kStrength[] = { "Weaker", "Water Temple" };
+            changed |= combo("Dark Link strength", &s.darkLinkStrength, kStrength, 2,
+                             "Weaker: half his health. Water Temple: as strong as there.");
+        }
+        ImGui::Unindent();
+    }
+    int cooldown = s.respawnCooldown >= 8 ? 2 : (s.respawnCooldown >= 3 ? 1 : 0);
+    static const char* const kCooldown[] = { "None", "5 seconds", "10 seconds" };
+    if (combo("Respawn cooldown", &cooldown, kCooldown, 3, "Extra wait before the Game Over menu after a death.")) {
+        s.respawnCooldown = cooldown * 5;
+        changed = true;
+    }
+    changed |= ImGui::Checkbox("Ready check", &s.readyCheck);
+    tooltip("Walking into a dungeon or through a boss door waits until everyone in the area is ready (L).");
+
     ImGui::Unindent();
     ImGui::PopID();
     return changed;
@@ -829,12 +994,18 @@ void CoopLobbyWindow::DrawSession() {
                         lastFile = j.lastFile;
             }
             if (gPlayState == nullptr) {
-                if (lastFile >= 0)
-                    ImGui::TextWrapped("Now choose a save file. Last time you played this with %s.",
-                                       FileLabel(lastFile).c_str());
-                else
-                    ImGui::TextWrapped("Now choose a save file, or start a new one. Any file works: the team's "
-                                       "progress is added to it.");
+                (void)lastFile;
+                // online play always uses the co-op file of this playthrough: solo files stay offline
+                const bool exists = CoopFileExists();
+                if (ImGui::Button(exists ? "Continue co-op file" : "Start a new co-op file"))
+                    RequestPlay();
+                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+                ImGui::TextWrapped(exists ? "This playthrough has its own save file. Your solo files are not used "
+                                            "online."
+                                          : "This playthrough gets its own save file. Your solo files are not used "
+                                            "online. To bring one along, choose Copy a solo file in the in-game "
+                                            "lobby (R on the file select).");
+                ImGui::PopStyleColor();
             } else {
                 ImGui::TextWrapped("Playing %s. Your friends' progress is shared with this file.",
                                    FileLabel(gSaveContext.fileNum).c_str());

@@ -1129,6 +1129,7 @@ void ZeldaOnlineClient::StoryUpdate() {
         StoryRestorePlayer();
     StoryMoveToEra();
     StoryWatchWarp();
+    CoopWatchReadyCheck();
     StoryWatchCutscenes();
     StoryWatchDialogue();
 
@@ -1161,7 +1162,14 @@ void ZeldaOnlineClient::StoryUpdate() {
         m_storyHasPending = false;
         m_storyPending = StoryProgress();
 
-        if (StoryApply(team) && m_storyNotifyCooldown == 0) {
+        // the first snapshot after loading a save: tell the player what the party gave them
+        const bool joinSummary = m_coopJoinArmed;
+        m_coopJoinArmed = false;
+        const CoopJoinSnapshot beforeJoin = joinSummary ? CoopCaptureJoin() : CoopJoinSnapshot();
+        const bool applied = StoryApply(team);
+        if (applied && joinSummary)
+            CoopDiffJoin(beforeJoin);
+        if (applied && m_storyNotifyCooldown == 0) {
             Notification::Emit({ .message = "Party progress received" });
             m_storyNotifyCooldown = 5 * 20;
         }

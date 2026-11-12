@@ -433,6 +433,13 @@ void FileChoose_UpdateMainMenu(GameState* thisx) {
     }
 
     if (CHECK_BTN_ALL(input->press.button, BTN_START) || CHECK_BTN_ALL(input->press.button, BTN_A)) {
+        // SOH [ZeldaOnline] while a Co-op Lobby session runs, the solo files stay solo: the co-op file is played
+        // from the Co-op screen (R)
+        if (this->buttonIndex <= FS_BTN_MAIN_FILE_3 && CoopLobby_BlockSoloFile(this)) {
+            Audio_PlaySoundGeneral(NA_SE_SY_FSEL_ERROR, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
+                                   &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+            return;
+        }
         if (this->buttonIndex <= FS_BTN_MAIN_FILE_3) {
             if (!Save_GetSaveMetaInfo(this->buttonIndex)->valid) {
                 Audio_PlaySoundGeneral(NA_SE_SY_FSEL_DECIDE_L, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
@@ -2548,6 +2555,56 @@ void FileChoose_FadeOut(GameState* thisx) {
  * Note: On Debug ROM, File 1 will go to Map Select.
  * Update function for `SM_LOAD_GAME`
  */
+void Sram_InitNewSave(void);
+
+// SOH [ZeldaOnline] Co-op Lobby: starts the session's co-op file (SaveManager's co-op slot, set by the lobby before
+// this). With `createNew` a new file named `name` (ASCII, up to 8 characters) is made first, like a new file in slot.
+void FileChoose_StartCoopFile(GameState* thisx, s32 createNew, const char* name) {
+    FileChooseContext* this = (FileChooseContext*)thisx;
+    if (createNew) {
+        Sram_InitNewSave();
+        gSaveContext.entranceIndex = ENTR_LINKS_HOUSE_CHILD_SPAWN;
+        gSaveContext.linkAge = 1;
+        gSaveContext.dayTime = 0x6AAB;
+        gSaveContext.cutsceneIndex = 0xFFF1;
+        const s32 pal = ResourceMgr_GetGameRegion(0) == GAME_REGION_PAL && gSaveContext.language != LANGUAGE_JPN;
+        if (pal) {
+            gSaveContext.ship.filenameLanguage = NAME_LANGUAGE_PAL;
+        } else {
+            gSaveContext.ship.filenameLanguage =
+                (gSaveContext.language == LANGUAGE_JPN) ? NAME_LANGUAGE_NTSC_JPN : NAME_LANGUAGE_NTSC_ENG;
+        }
+        // the file name in the game's own letters
+        s32 len = (name != NULL) ? (s32)strlen(name) : 0;
+        for (s32 i = 0; i < 8; i++) {
+            char c = (i < len) ? name[i] : ' ';
+            u8 out;
+            if (c >= '0' && c <= '9') {
+                out = (u8)(c - '0');
+            } else if (c >= 'A' && c <= 'Z') {
+                out = pal ? (u8)(10 + c - 'A') : (u8)(0xAB + c - 'A');
+            } else if (c >= 'a' && c <= 'z') {
+                out = pal ? (u8)(36 + c - 'a') : (u8)(0xC5 + c - 'a');
+            } else if (c == '-') {
+                out = pal ? 63 : 0xE4;
+            } else if (c == '.') {
+                out = pal ? 64 : 0xEA;
+            } else {
+                out = pal ? 62 : 0xDF;
+            }
+            gSaveContext.playerName[i] = out;
+        }
+        gSaveContext.n64ddFlag = 0;
+        gSaveContext.ship.quest.id = QUEST_NORMAL;
+        gSaveContext.fileNum = SAVEMANAGER_COOP_FILE;
+        Save_SaveFile();
+        SaveManager_ThreadPoolWait();
+    }
+    this->buttonIndex = SAVEMANAGER_COOP_FILE;
+    func_800F6964(0xF);
+    FileChoose_LoadGame(thisx);
+}
+
 void FileChoose_LoadGame(GameState* thisx) {
     FileChooseContext* this = (FileChooseContext*)thisx;
     u16 swordEquipValue;
