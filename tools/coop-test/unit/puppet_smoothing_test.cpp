@@ -76,7 +76,7 @@ int main() {
         }
     }
 
-    // updates stop: it keeps moving in the same direction for a few frames, then settles
+    // updates stop: it keeps moving in the same direction for a few frames, then settles on the last position
     {
         PuppetSmoother s;
         Send(s, 0, 0, 0);
@@ -86,11 +86,14 @@ int main() {
             s.Step();
         }
         float atStop = s.shown[0];
-        for (int f = 0; f < 30; f++)
-            s.Step();
+        s.Step();
+        CHECK(s.shown[0] > atStop); // still moving the next frame
         float limit = 100.0f + 10.0f * PuppetSmoother::kMaxExtrapolateFrames;
-        CHECK(s.shown[0] > atStop);
-        CHECK(s.shown[0] <= limit + 0.01f);
+        for (int f = 0; f < 30; f++) {
+            s.Step();
+            CHECK(s.shown[0] <= limit + 0.01f);
+        }
+        CHECK(s.shown[0] == 100.0f); // then exactly where it stopped
     }
 
     // a warp is applied at once
@@ -101,6 +104,41 @@ int main() {
         Send(s, 5000, 200, 3000);
         CHECK(s.Step());
         CHECK(Near(s.shown[0], 5000) && Near(s.shown[1], 200) && Near(s.shown[2], 3000));
+    }
+
+    // a short teleport (moved by a script or a warp point next door) is applied at once, not slid
+    {
+        PuppetSmoother s;
+        Send(s, 0, 0, 0);
+        s.Step();
+        Send(s, 150, 0, 0);
+        CHECK(s.Step());
+        CHECK(Near(s.shown[0], 150));
+    }
+
+    // a short teleport after standing still for a while (no updates in between) is applied at once too
+    {
+        PuppetSmoother s;
+        Send(s, 0, 0, 0);
+        s.Step();
+        for (int f = 0; f < 200; f++)
+            s.Step();
+        Send(s, 180, 0, 0);
+        CHECK(s.Step());
+        CHECK(Near(s.shown[0], 180));
+    }
+
+    // Epona at full gallop is still smoothed
+    {
+        PuppetSmoother s;
+        Send(s, 0, 0, 0);
+        s.Step();
+        bool snapped = false;
+        for (int f = 1; f <= 30; f++) {
+            Send(s, f * 28.0f, 0, 0);
+            snapped |= s.Step();
+        }
+        CHECK(!snapped);
     }
 
     // standing still stays exactly still
@@ -130,6 +168,20 @@ int main() {
         CHECK(s.shownYaw == 0x1000);
     }
 
+    // after stopping, the puppet ends up exactly on the last position and facing (not a hair short)
+    {
+        PuppetSmoother s;
+        Send(s, 0, 0, 0);
+        s.SetYaw(0);
+        s.Step();
+        Send(s, 40, 0, 0);
+        s.SetYaw(0x1234);
+        for (int f = 0; f < 30; f++)
+            s.Step();
+        CHECK(s.shown[0] == 40.0f && s.shown[1] == 0.0f && s.shown[2] == 0.0f);
+        CHECK(s.shownYaw == 0x1234);
+    }
+
     // Reset forgets everything: the next position is taken as it is
     {
         PuppetSmoother s;
@@ -139,6 +191,19 @@ int main() {
         Send(s, 100, 0, 0);
         CHECK(s.Step());
         CHECK(Near(s.shown[0], 100));
+    }
+
+    // only the changed axes arrive: the others keep the spawn position, not 0
+    {
+        PuppetSmoother s;
+        s.SeedPosition(160, 0, 1415);
+        s.SetAxis(0, 225);
+        CHECK(s.Step());
+        CHECK(Near(s.shown[0], 225) && Near(s.shown[1], 0) && Near(s.shown[2], 1415));
+        // a later update of one axis keeps the others
+        s.SetAxis(1, 20);
+        s.Step();
+        CHECK(Near(s.target[0], 225) && Near(s.target[1], 20) && Near(s.target[2], 1415));
     }
 
     std::printf("%d checks, %d failed\n", sChecks, sFailures);

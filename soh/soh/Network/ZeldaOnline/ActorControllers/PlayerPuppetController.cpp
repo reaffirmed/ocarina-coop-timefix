@@ -427,6 +427,12 @@ bool PlayerPuppetController::ApplyStandardProperty(unsigned int index, ByteStrea
 }
 
 void PlayerPuppetController::StepSmoothing() {
+    if (!m_smooth.hasTarget) {
+        m_smooth.SeedPosition(m_actor->world.pos.x, m_actor->world.pos.y, m_actor->world.pos.z);
+    }
+    if (!m_horseSmooth.hasTarget) {
+        m_horseSmooth.SeedPosition(m_horsePos.x, m_horsePos.y, m_horsePos.z);
+    }
     if (CVarGetInteger("gZeldaOnline.SmoothPartners", 1) == 0) {
         // Old behaviour: exactly the last received position
         m_smooth.Step();
