@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <ctime>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <libultraship/bridge/consolevariablebridge.h>
@@ -119,7 +120,7 @@ constexpr const char* kModernCVar = "gZeldaOnline.Lobby.ModernLayout";
 int RowsOnScreen() {
     if (CVarGetInteger(kModernCVar, 0) == 0)
         return sScreen.page == Page::Settings ? 5 : 6; // the settings keep two lines for their help
-    return sScreen.page == Page::Settings ? 7 : 5;
+    return sScreen.page == Page::Settings ? 6 : 5; // the settings panel ends above the button legend
 }
 
 CoopLobbyWindow* Lobby() {
@@ -885,6 +886,8 @@ extern "C" int CoopLobby_FileSelectCheckOpen(FileChooseContext* ctx) {
     return 1;
 }
 
+static void Rect(FileChooseContext* ctx, int x, int y, int w, int h, u8 r, u8 g, u8 b, u8 a);
+
 extern "C" void CoopLobby_FileSelectDrawPrompt(FileChooseContext* ctx) {
     CoopLobbyWindow* lobby = Lobby();
     if (lobby == nullptr)
@@ -923,7 +926,9 @@ extern "C" void CoopLobby_FileSelectDrawPrompt(FileChooseContext* ctx) {
     if (lobby->soloBlockedFrames > 0) {
         lobby->soloBlockedFrames--;
         const std::string why = "Solo files stay offline. Press R, then Continue co-op file.";
-        DrawText(ctx, why, (int)(160.0f - TextWidth(why, 0.65f) / 2.0f), 32, 255, 140, 140, 0.65f);
+        const int w = (int)TextWidth(why, 0.65f);
+        Rect(ctx, 160 - w / 2 - 4, 31, w + 8, 11, 0, 0, 0, 150); // readable on the bright sky too
+        DrawText(ctx, why, 160 - w / 2, 32, 255, 140, 140, 0.65f);
     }
     sScreen.alpha = saved;
 }
@@ -1228,16 +1233,26 @@ static std::string Fit(const std::string& text, float width, float scale) {
 }
 
 static void Icon(FileChooseContext* ctx, const char* tex, int x, int y, int size, bool have) {
-    Sprite sprite = {};
-    std::snprintf(sprite.tex, sizeof(sprite.tex), "%s", tex);
-    sprite.width = 24;
-    sprite.height = 24;
-    sprite.im_fmt = G_IM_FMT_RGBA;
-    sprite.im_siz = G_IM_SIZ_32b;
+    // The display list keeps a pointer to the texture name until the frame is drawn, so the sprite must outlive
+    // this call (a sprite on the stack drew noise).
+    static std::unordered_map<std::string, Sprite> sSprites;
+    auto it = sSprites.find(tex);
+    if (it == sSprites.end()) {
+        Sprite fresh = {};
+        std::snprintf(fresh.tex, sizeof(fresh.tex), "%s", tex);
+        fresh.width = 24;
+        fresh.height = 24;
+        fresh.im_fmt = G_IM_FMT_RGBA;
+        fresh.im_siz = G_IM_SIZ_32b;
+        it = sSprites.emplace(tex, fresh).first;
+    }
+    Sprite& sprite = it->second;
+    Gfx_SetupDL_39Opa(ctx->state.gfxCtx);
     OPEN_DISPS(ctx->state.gfxCtx);
     gDPPipeSync(POLY_OPA_DISP++);
+    gDPSetTextureLUT(POLY_OPA_DISP++, G_TT_NONE);
     gDPSetRenderMode(POLY_OPA_DISP++, G_RM_XLU_SURF, G_RM_XLU_SURF2);
-    gDPSetCombineMode(POLY_OPA_DISP++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+    gDPSetCombineMode(POLY_OPA_DISP++, G_CC_MODULATERGBA_PRIM, G_CC_MODULATERGBA_PRIM);
     if (have)
         gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 255, 255, 255, A(255));
     else
@@ -1286,12 +1301,13 @@ static void DrawCard(FileChooseContext* ctx, const std::vector<Row>& rows, const
         file = p.lastFile;
     } else if (sScreen.page == Page::Session && lobby->IsHosting() && lobby->ActivePlaythrough() != nullptr) {
         title = lobby->ActivePlaythrough()->name;
-        line = hint;
         file = lobby->PrepareCoopFile() ? SaveManager::CoopFileNum : -1;
+        // one line: the file's progress icons take the second
+        line = file >= 0 ? "Your co-op save file:" : hint;
     } else if (sScreen.page == Page::Session && !lobby->ConnectedTo().empty()) {
         title = lobby->ConnectedTo() + "'s game";
-        line = hint;
         file = lobby->PrepareCoopFile() ? SaveManager::CoopFileNum : -1;
+        line = file >= 0 ? "Your co-op save file:" : hint;
     } else {
         title = sScreen.page == Page::HostPick  ? "New playthrough"
                 : sScreen.page == Page::Session ? "Join a friend"
@@ -1504,6 +1520,7 @@ static void DrawNamePage(FileChooseContext* ctx, bool modern) {
     if (modern) {
         Panel(ctx, gx - 14, top - 6, gridW + 28, 150);
         Rect(ctx, gx - 13, top - 5, gridW + 26, 15, 60, 100, 200, 90);
+        TextAlpha(ctx, "The name your teammates see", gx - 7, top - 3, 255, 255, 255, 0.65f);
     }
 
     // the name being typed
