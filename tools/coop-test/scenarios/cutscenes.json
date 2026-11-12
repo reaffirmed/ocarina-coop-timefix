@@ -835,14 +835,14 @@
         },
         {
           "type": "each",
-          "obs": "after_trigger",
+          "obs": "after",
           "path": "cs_sent",
           "op": "ge",
           "value": 1,
           "roles": [
             "A"
           ],
-          "label": "A announces the Deku Tree cutscene"
+          "label": "A announces the Deku Tree cutscene once the vote lets it go"
         },
         {
           "type": "each",
