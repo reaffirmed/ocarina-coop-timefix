@@ -39,6 +39,7 @@
 #include <assert.h>
 
 const char* ZeldaOnline_LocalSkinName(); // ZO - Get the local players chosen skin
+s32 ZeldaOnline_ScaleEnemyDamage(s32 healthChange); // ZO - Party damage multiplier for hits from enemies
 
 // Some player animations are played at this reduced speed, for reasons yet unclear.
 // This is called "adjusted" for now.
@@ -4538,7 +4539,7 @@ void func_80837C0C(PlayState* play, Player* this, s32 damageResponseType, f32 sp
 
     Player_PlaySfx(this, NA_SE_PL_DAMAGE);
 
-    if (!func_80837B18(play, this, 0 - this->actor.colChkInfo.damage)) {
+    if (!func_80837B18(play, this, ZeldaOnline_ScaleEnemyDamage(0 - this->actor.colChkInfo.damage))) {
         this->stateFlags2 &= ~PLAYER_STATE2_GRABBED_BY_ENEMY;
         if (!(this->actor.bgCheckFlags & 1) && !(this->stateFlags1 & PLAYER_STATE1_IN_WATER)) {
             func_80837B9C(this, play);

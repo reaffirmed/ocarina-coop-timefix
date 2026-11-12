@@ -256,6 +256,7 @@ class ZeldaOnlineRoomWindow : public Ship::GuiWindow {
                 if (!m_partySettings.privateDungeons) {
                     m_partySettings.extraEnemies = false;
                     m_partySettings.healthMultiplier = false;
+                    m_partySettings.damageMultiplier = false;
                 }
             }
 
@@ -316,8 +317,9 @@ class ZeldaOnlineRoomWindow : public Ship::GuiWindow {
             const float labelHeight = ImGui::GetTextLineHeightWithSpacing();
             const float enemyHeight = (rowHeight * 2.0f) + padY;
             const float healthHeight = (rowHeight * 3.0f) + padY;
-            const float modifierHeight =
-                (labelHeight * 2.0f) + enemyHeight + healthHeight + (ImGui::GetStyle().ItemSpacing.y * 2.0f) + padY;
+            const float damageHeight = (rowHeight * 2.0f) + padY;
+            const float modifierHeight = (labelHeight * 3.0f) + enemyHeight + healthHeight + damageHeight +
+                                         (ImGui::GetStyle().ItemSpacing.y * 4.0f) + padY;
 
             ImGui::TextUnformatted("Dungeon Settings");
 
@@ -371,6 +373,29 @@ class ZeldaOnlineRoomWindow : public Ship::GuiWindow {
                         ImGui::SetTooltip("Health weight for bosses.\nHealth increases by 0.25 x Party Size x Weight");
 
                     if (!m_partySettings.healthMultiplier)
+                        ImGui::EndDisabled();
+                }
+
+                ImGui::EndChild();
+
+                ImGui::Spacing();
+                ImGui::TextUnformatted("Damage Multiplier");
+
+                if (ImGui::BeginChild("##zo_damage_multiplier", ImVec2(0.0f, damageHeight), true)) {
+                    ImGui::Checkbox("Enabled##zo_damage_multiplier_enabled", &m_partySettings.damageMultiplier);
+
+                    if (!m_partySettings.damageMultiplier)
+                        ImGui::BeginDisabled();
+
+                    ImGui::SetNextItemWidth(-FLT_MIN);
+                    ImGui::SliderFloat("##zo_enemy_damage_weight", &m_partySettings.enemyDamageWeight, 0.0f, 5.0f,
+                                       "Enemy Damage Weight %.1f", ImGuiSliderFlags_AlwaysClamp);
+
+                    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                        ImGui::SetTooltip("Damage weight for hits from enemies and bosses.\n"
+                                          "Damage increases by 0.25 x Party Size x Weight (up to 3x)");
+
+                    if (!m_partySettings.damageMultiplier)
                         ImGui::EndDisabled();
                 }
 

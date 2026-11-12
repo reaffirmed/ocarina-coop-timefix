@@ -473,6 +473,8 @@ void ZeldaOnlineClient::Enable() {
                 CVarSetInteger("gZeldaOnline.Party.HealthMultiplier", m_partySettings.healthMultiplier ? 1 : 0);
                 CVarSetFloat("gZeldaOnline.Party.EnemyHealthWeight", m_partySettings.enemyHealthWeight);
                 CVarSetFloat("gZeldaOnline.Party.BossHealthWeight", m_partySettings.bossHealthWeight);
+                CVarSetInteger("gZeldaOnline.Party.DamageMultiplier", m_partySettings.damageMultiplier ? 1 : 0);
+                CVarSetFloat("gZeldaOnline.Party.EnemyDamageWeight", m_partySettings.enemyDamageWeight);
                 CVarSetInteger("gZeldaOnline.Party.StoryCoop", m_partySettings.storyCoop ? 1 : 0);
                 CVarSetInteger("gZeldaOnline.Party.ShareAmmoRupeesHp", m_partySettings.shareAmmoRupeesHp ? 1 : 0);
                 CVarSetString("gZeldaOnline.Party.StoryCode", m_partySettings.storyCode.c_str());
@@ -514,6 +516,8 @@ std::string ZeldaOnlineClient::BuildPartySettingsJSON(const PartySettings& party
     settings["healthMultiplier"] = partySettings.healthMultiplier;
     settings["enemyHealthWeight"] = partySettings.enemyHealthWeight;
     settings["bossHealthWeight"] = partySettings.bossHealthWeight;
+    settings["damageMultiplier"] = partySettings.damageMultiplier;
+    settings["enemyDamageWeight"] = partySettings.enemyDamageWeight;
     settings["storyCoop"] = partySettings.storyCoop;
     settings["shareAmmoRupeesHp"] = partySettings.shareAmmoRupeesHp;
     settings["storyCode"] = partySettings.storyCode;
@@ -533,6 +537,8 @@ bool ZeldaOnlineClient::ParsePartySettingsJSON(const std::string& partySettings,
     out.healthMultiplier = settings.value("healthMultiplier", false);
     out.enemyHealthWeight = settings.value("enemyHealthWeight", 1.0f);
     out.bossHealthWeight = settings.value("bossHealthWeight", 1.0f);
+    out.damageMultiplier = settings.value("damageMultiplier", false);
+    out.enemyDamageWeight = settings.value("enemyDamageWeight", 1.0f);
     out.storyCoop = settings.value("storyCoop", false);
     out.shareAmmoRupeesHp = settings.value("shareAmmoRupeesHp", false);
     out.storyCode = settings.value("storyCode", std::string());
@@ -553,6 +559,11 @@ bool ZeldaOnlineClient::ParsePartySettingsJSON(const std::string& partySettings,
         out.bossHealthWeight = 0.0f;
     if (out.bossHealthWeight > 5.0f)
         out.bossHealthWeight = 5.0f;
+
+    if (out.enemyDamageWeight < 0.0f)
+        out.enemyDamageWeight = 0.0f;
+    if (out.enemyDamageWeight > 5.0f)
+        out.enemyDamageWeight = 5.0f;
     return true;
 
 }
@@ -576,6 +587,8 @@ void ZeldaOnlineClient::LoadPartySettings() {
     m_partySettings.healthMultiplier = CVarGetInteger("gZeldaOnline.Party.HealthMultiplier", 0) != 0;
     m_partySettings.enemyHealthWeight = CVarGetFloat("gZeldaOnline.Party.EnemyHealthWeight", 1.0f);
     m_partySettings.bossHealthWeight = CVarGetFloat("gZeldaOnline.Party.BossHealthWeight", 1.0f);
+    m_partySettings.damageMultiplier = CVarGetInteger("gZeldaOnline.Party.DamageMultiplier", 0) != 0;
+    m_partySettings.enemyDamageWeight = CVarGetFloat("gZeldaOnline.Party.EnemyDamageWeight", 1.0f);
     m_partySettings.storyCoop = CVarGetInteger("gZeldaOnline.Party.StoryCoop", 0) != 0;
     m_partySettings.shareAmmoRupeesHp = CVarGetInteger("gZeldaOnline.Party.ShareAmmoRupeesHp", 0) != 0;
     m_partySettings.storyCode = CVarGetString("gZeldaOnline.Party.StoryCode", "");
@@ -3164,6 +3177,41 @@ float ZeldaOnlineClient::RollBossHealthMultiplier(f32 weight) const {
     return RollHealthMultiplier(weight, m_partySettings.bossHealthWeight);
 }
 
+// Same rule as the health multiplier: 1 + 0.25 x party size x weight, capped at 3x, only in party dungeon scenes.
+float ZeldaOnlineClient::EnemyDamageMultiplier() const {
+    if (m_partyID == 0 || !m_partySettings.privateDungeons || !m_partySettings.damageMultiplier)
+        return 1.0f;
+
+    if (gPlayState == nullptr || !IsPartyScene(gPlayState->sceneNum))
+        return 1.0f;
+
+    if (m_partySettings.enemyDamageWeight <= 0.0f || m_partySize < 1)
+        return 1.0f;
+
+    f32 multiplier = 1.0f + (m_partySize * m_healthWeightPerPlayer * m_partySettings.enemyDamageWeight);
+
+    if (multiplier < 1.0f)
+        multiplier = 1.0f;
+
+    if (multiplier > 3.0f)
+        multiplier = 3.0f;
+
+    return multiplier;
+}
+
+// Damage is a negative health change in 1/16 hearts. Rounds away from zero so every scaled hit costs at least as
+// much as vanilla.
+s32 ZeldaOnlineClient::ScaleEnemyDamage(s32 healthChange) const {
+    if (healthChange >= 0)
+        return healthChange;
+
+    f32 multiplier = EnemyDamageMultiplier();
+    if (multiplier <= 1.0f)
+        return healthChange;
+
+    return -(s32)std::ceil(-healthChange * multiplier);
+}
+
 std::vector<std::string> MissingArchives(const std::vector<std::string>& archiveNames) {
     std::unordered_set<std::string> loaded;
 
@@ -3219,6 +3267,13 @@ extern "C" int ZeldaOnlineClient_RequestRoomSceneChange(int freshLoad) {
 
     auto instance = ZeldaOnline::ZeldaOnlineClient::Instance;
     return 0;
+}
+
+extern "C" s32 ZeldaOnline_ScaleEnemyDamage(s32 healthChange) {
+    auto* client = ZeldaOnline::ZeldaOnlineClient::Instance;
+    if (client == nullptr || !client->isConnected)
+        return healthChange;
+    return client->ScaleEnemyDamage(healthChange);
 }
 
 extern "C" const char* ZeldaOnline_LocalSkinName() {
