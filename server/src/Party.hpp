@@ -185,6 +185,15 @@ namespace ZeldaOnline
 		void OnMemberRemoved(Player* player);
 		void OnMemberAgeChanged(Player* player);
 		void BroadcastVoteStatus();
+
+		// Story Co-op warp vote. A member whose game starts a transition into a scene cutscene (a blue warp, the
+		// Chamber of Sages, Kakariko burning) holds it and asks here first. The members in the same scene are asked
+		// whether they are ready; once all are (or nobody else is there, or a holder says go) the holders run it.
+		static const uint8_t STORY_WARP_WITHDRAW = 0;
+		static const uint8_t STORY_WARP_HOLD = 1;
+		static const uint8_t STORY_WARP_READY = 2;
+		static const uint8_t STORY_WARP_GO_NOW = 3;
+		void HandleWarpVote(Player* player, uint8_t action);
 		static void TickAll(std::chrono::steady_clock::time_point now);
 
 		Player* GetAdmin() {
@@ -212,6 +221,10 @@ namespace ZeldaOnline
 		uint8_t ComputeEra() const;
 		void SendVoteStatusTo(Player* player, bool active);
 		bool HasVoted(uint16_t netID) const;
+		void EvaluateWarpVote(bool forceBroadcast);
+		void EndWarpVote(bool go);
+		void SendWarpStatus(uint8_t state);
+		Player* MemberByID(uint16_t netID) const;
 
 		uint32_t m_id;
 		std::vector<Player*> m_members;
@@ -234,6 +247,17 @@ namespace ZeldaOnline
 		bool m_travelling = false;
 		uint8_t m_travelTarget = 0;
 		std::chrono::steady_clock::time_point m_travelDeadline;
+
+		struct WarpVote
+		{
+			bool active = false;
+			Scene* scene = nullptr;              // only compared with the members' current scene
+			std::vector<uint16_t> holders;       // members holding their own transition, in the order they asked
+			std::vector<uint16_t> participants;  // every member who was in the scene when it started (holders too)
+			std::vector<uint16_t> ready;
+			std::chrono::steady_clock::time_point nextCheck;
+		};
+		WarpVote m_warp;
 
 		inline static uint32_t s_nextID = 1;
 		inline static std::unordered_map<uint32_t, std::weak_ptr<Party>> s_parties;

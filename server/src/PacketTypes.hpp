@@ -62,7 +62,10 @@ namespace ZeldaOnline {
         CLIENT_PACKET_STORY_DIALOGUE = 43,
         // u1 1 if vanilla time would pass in the sender's current scene (scene time increment not 0), else 0;
         // the server clock only runs while at least one player reports 1
-        CLIENT_PACKET_SET_TIME_FLOWS = 44
+        CLIENT_PACKET_SET_TIME_FLOWS = 44,
+        // warp vote before a scene cutscene transition: u1 action (STORY_WARP_*: 0 withdraw, 1 this player's transition
+        // is on hold, 2 ready, 3 go without waiting), u2 entrance, u2 cutscene index (both 0 unless action 1)
+        CLIENT_PACKET_STORY_WARP_VOTE = 45
 
     };
 
@@ -118,7 +121,13 @@ namespace ZeldaOnline {
         // u2 sender network id, then the CLIENT_PACKET_STORY_CUTSCENE fields
         SERVER_PACKET_STORY_CUTSCENE = 42,
         // u2 sender network id, then the CLIENT_PACKET_STORY_DIALOGUE fields
-        SERVER_PACKET_STORY_DIALOGUE = 43
+        SERVER_PACKET_STORY_DIALOGUE = 43,
+        // warp vote in the receiver's scene: u1 state (0 over, 1 running, 2 over and the warp goes ahead), u1 ready,
+        // u1 total, u1 role of the receiver (0 not ready, 1 ready, 2 holding a warp), u1 length + name of the member
+        // who started it, u1 count, then u1 length + name of each member not ready yet
+        SERVER_PACKET_STORY_WARP_STATUS = 44,
+        // to a member holding a warp: everybody is ready (or nobody else is there), run the transition now
+        SERVER_PACKET_STORY_WARP_GO = 45
     };
 
     static const int PLAYER_PUPPET_ROOM = -1;

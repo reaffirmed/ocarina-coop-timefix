@@ -303,6 +303,287 @@
       ]
     },
     {
+      "name": "skip_story_scene",
+      "server": "fresh",
+      "roles": {
+        "A": {
+          "name": "TestA",
+          "god": true,
+          "steps": [
+            {
+              "op": "wait_play",
+              "timeout_frames": 1800
+            },
+            {
+              "op": "reset_inventory"
+            },
+            {
+              "op": "connect"
+            },
+            {
+              "op": "wait_until",
+              "cond": "connected",
+              "timeout_frames": 1200
+            },
+            {
+              "op": "wait_until",
+              "cond": "net_id",
+              "timeout_frames": 1200
+            },
+            {
+              "op": "warp",
+              "entrance": 238,
+              "scene": 85,
+              "timeout_frames": 1800
+            },
+            {
+              "op": "wait_until",
+              "cond": "other_players",
+              "timeout_frames": 3600,
+              "n": 1
+            },
+            {
+              "op": "create_party",
+              "story_coop": true,
+              "story_code": "cs-qa-skip"
+            },
+            {
+              "op": "wait_until",
+              "cond": "has_party",
+              "timeout_frames": 1200
+            },
+            {
+              "op": "wait_until",
+              "cond": "story_active",
+              "timeout_frames": 1200
+            },
+            {
+              "op": "invite"
+            },
+            {
+              "op": "wait_until",
+              "cond": "party_size",
+              "timeout_frames": 3600,
+              "n": 2
+            },
+            {
+              "op": "warp",
+              "entrance": 401,
+              "scene": 82,
+              "timeout_frames": 1800
+            },
+            {
+              "op": "wait_until",
+              "cond": "peers_in_scene",
+              "timeout_frames": 3600,
+              "n": 1
+            },
+            {
+              "op": "unset_flag",
+              "type": "event_chk_inf",
+              "flag": 163
+            },
+            {
+              "op": "wait_frames",
+              "n": 90
+            },
+            {
+              "op": "warp",
+              "entrance": 219,
+              "scene": 82,
+              "cutscene_ok": true,
+              "timeout_frames": 1800
+            },
+            {
+              "op": "observe",
+              "name": "after_trigger"
+            },
+            {
+              "op": "wait_until",
+              "cond": "cutscene_done",
+              "timeout_frames": 3600,
+              "mash": true,
+              "scene": 82
+            },
+            {
+              "op": "observe",
+              "name": "after",
+              "flags": [
+                {
+                  "type": "event_chk_inf",
+                  "flag": 163
+                }
+              ]
+            },
+            {
+              "op": "wait_frames",
+              "n": 30
+            },
+            {
+              "op": "quit"
+            }
+          ]
+        },
+        "B": {
+          "name": "TestB",
+          "god": true,
+          "steps": [
+            {
+              "op": "wait_play",
+              "timeout_frames": 1800
+            },
+            {
+              "op": "reset_inventory"
+            },
+            {
+              "op": "connect"
+            },
+            {
+              "op": "wait_until",
+              "cond": "connected",
+              "timeout_frames": 1200
+            },
+            {
+              "op": "wait_until",
+              "cond": "net_id",
+              "timeout_frames": 1200
+            },
+            {
+              "op": "warp",
+              "entrance": 238,
+              "scene": 85,
+              "timeout_frames": 1800
+            },
+            {
+              "op": "wait_until",
+              "cond": "other_players",
+              "timeout_frames": 3600,
+              "n": 1
+            },
+            {
+              "op": "wait_until",
+              "cond": "invite_pending",
+              "timeout_frames": 3600
+            },
+            {
+              "op": "accept_invite"
+            },
+            {
+              "op": "wait_until",
+              "cond": "has_party",
+              "timeout_frames": 1200
+            },
+            {
+              "op": "wait_until",
+              "cond": "story_active",
+              "timeout_frames": 1200
+            },
+            {
+              "op": "wait_until",
+              "cond": "party_size",
+              "timeout_frames": 3600,
+              "n": 2
+            },
+            {
+              "op": "warp",
+              "entrance": 401,
+              "scene": 82,
+              "timeout_frames": 1800
+            },
+            {
+              "op": "wait_until",
+              "cond": "peers_in_scene",
+              "timeout_frames": 3600,
+              "n": 1
+            },
+            {
+              "op": "unset_flag",
+              "type": "event_chk_inf",
+              "flag": 163
+            },
+            {
+              "op": "wait_until",
+              "cond": "cs_received",
+              "n": 1,
+              "timeout_frames": 2400
+            },
+            {
+              "op": "wait_frames",
+              "n": 10
+            },
+            {
+              "op": "input",
+              "buttons": [
+                "L"
+              ],
+              "n": 1
+            },
+            {
+              "op": "wait_frames",
+              "n": 200
+            },
+            {
+              "op": "observe",
+              "name": "skipped"
+            },
+            {
+              "op": "wait_frames",
+              "n": 30
+            },
+            {
+              "op": "quit"
+            }
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "type": "each",
+          "obs": "after_trigger",
+          "path": "cs_sent",
+          "op": "ge",
+          "value": 1,
+          "roles": [
+            "A"
+          ],
+          "label": "A announces the Kakariko intro"
+        },
+        {
+          "type": "each",
+          "obs": "skipped",
+          "path": "cs_skipped",
+          "op": "eq",
+          "value": 1,
+          "roles": [
+            "B"
+          ],
+          "label": "B skips it with L"
+        },
+        {
+          "type": "each",
+          "obs": "skipped",
+          "path": "cs_started",
+          "op": "eq",
+          "value": 0,
+          "roles": [
+            "B"
+          ],
+          "label": "B does not start the skipped intro"
+        },
+        {
+          "type": "each",
+          "obs": "skipped",
+          "path": "cs_state",
+          "op": "eq",
+          "value": 0,
+          "roles": [
+            "B"
+          ],
+          "label": "B keeps playing"
+        }
+      ]
+    },
+    {
       "name": "scene_cutscene_together",
       "server": "fresh",
       "roles": {
@@ -474,6 +755,27 @@
             },
             {
               "op": "wait_until",
+              "cond": "warp_asked",
+              "timeout_frames": 1800,
+              "n": 1
+            },
+            {
+              "op": "observe",
+              "name": "asked"
+            },
+            {
+              "op": "wait_frames",
+              "n": 30
+            },
+            {
+              "op": "input",
+              "buttons": [
+                "L"
+              ],
+              "n": 1
+            },
+            {
+              "op": "wait_until",
               "cond": "cs_received",
               "n": 1,
               "timeout_frames": 2400
@@ -512,13 +814,35 @@
         {
           "type": "each",
           "obs": "after_trigger",
+          "path": "warp_holds",
+          "op": "eq",
+          "value": 1,
+          "roles": [
+            "A"
+          ],
+          "label": "A holds the warp for the vote"
+        },
+        {
+          "type": "each",
+          "obs": "asked",
+          "path": "warp_ready",
+          "op": "eq",
+          "value": false,
+          "roles": [
+            "B"
+          ],
+          "label": "B is asked whether it is ready"
+        },
+        {
+          "type": "each",
+          "obs": "after",
           "path": "cs_sent",
           "op": "ge",
           "value": 1,
           "roles": [
             "A"
           ],
-          "label": "A announces the Deku Tree cutscene"
+          "label": "A announces the Deku Tree cutscene once the vote lets it go"
         },
         {
           "type": "each",

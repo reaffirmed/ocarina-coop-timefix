@@ -2006,6 +2006,17 @@ namespace ZeldaOnline
 		}
 		break;
 
+		case CLIENT_PACKET_STORY_WARP_VOTE:
+		{
+			auto party = player->GetParty();
+			if (!party || !party->StoryCoop() || data.BytesLeft() < 1)
+				break;
+
+			auto action = data.Read<PackedUInt1>().value();
+			party->HandleWarpVote(player, (uint8_t)action);
+		}
+		break;
+
 		case CLIENT_PACKET_STORY_ADD_COUNTER:
 		{
 			auto party = player->GetParty();

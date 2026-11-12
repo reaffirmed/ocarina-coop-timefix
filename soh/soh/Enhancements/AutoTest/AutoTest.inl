@@ -121,6 +121,21 @@ struct AutoTestAccess {
     static int CsStarted() {
         return C()->m_storyCsStarted;
     }
+    static bool WarpHolding() {
+        return C()->m_storyWarpHold;
+    }
+    static int WarpHolds() {
+        return C()->m_storyWarpHolds;
+    }
+    static int WarpAsked() {
+        return C()->m_storyWarpAsked;
+    }
+    static bool WarpReady() {
+        return C()->m_storyWarpReady;
+    }
+    static int CsSkipped() {
+        return C()->m_storyCsSkipped;
+    }
     static int VoteTotal() {
         return C()->m_storyTotal;
     }
@@ -473,6 +488,11 @@ json Observe(const json& step) {
     o["cs_sent"] = AutoTestAccess::CsSent();
     o["cs_received"] = AutoTestAccess::CsReceived();
     o["cs_started"] = AutoTestAccess::CsStarted();
+    o["warp_hold"] = AutoTestAccess::WarpHolding();
+    o["warp_holds"] = AutoTestAccess::WarpHolds();
+    o["warp_asked"] = AutoTestAccess::WarpAsked();
+    o["warp_ready"] = AutoTestAccess::WarpReady();
+    o["cs_skipped"] = AutoTestAccess::CsSkipped();
     o["dlg_sent"] = AutoTestAccess::DlgSent();
     o["dlg_received"] = AutoTestAccess::DlgReceived();
     o["dlg_shown"] = AutoTestAccess::DlgShown();
@@ -702,6 +722,7 @@ uint16_t ButtonMask(const std::string& name) {
     if (name == "B") return BTN_B;
     if (name == "START") return BTN_START;
     if (name == "R") return BTN_R;
+    if (name == "L") return BTN_L;
     if (name == "Z") return BTN_Z;
     if (name == "L") return BTN_L;
     if (name == "CLEFT") return BTN_CLEFT;
@@ -896,6 +917,12 @@ bool RunStep(const json& step) {
             ok = gPlayState != nullptr && gPlayState->msgCtx.msgMode == MSGMODE_NONE;
         } else if (cond == "cs_received") {
             ok = AutoTestAccess::CsReceived() >= n;
+        } else if (cond == "warp_asked") {
+            // another member's warp vote asks this player
+            ok = AutoTestAccess::WarpAsked() >= n;
+        } else if (cond == "warp_holds") {
+            // this player's own scene cutscene transitions held for the warp vote
+            ok = AutoTestAccess::WarpHolds() >= n;
         } else if (PlayReady()) {
             if (cond == "peers_in_scene") {
                 ok = AutoTestAccess::PeersInScene(gPlayState->sceneNum) >= n;

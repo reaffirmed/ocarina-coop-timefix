@@ -48,21 +48,24 @@ enum ClientPackets {
 
     CLIENT_PACKET_UPDATE_DUNGEON_KEYS = 37,
 
-        CLIENT_PACKET_STORY_PROGRESS = 38,
-        CLIENT_PACKET_STORY_TIME_VOTE = 39,
-        CLIENT_PACKET_STORY_SHARE_ITEM = 40,
-        // u1 counter id (STORY_COUNTER_*), u2 amount to add; the server adds it to the team save and answers everybody
-        CLIENT_PACKET_STORY_ADD_COUNTER = 41,
-        // a story cutscene started here: u1 kind (0 script, 1 scene cutscene transition, 2 script built into an actor),
-        // u2 entrance, u2 cutscene index, u2 length + path (kind 0) or name (kind 2); relayed to the party members in the
-        // same scene
-        CLIENT_PACKET_STORY_CUTSCENE = 42,
-        // key NPC dialogue the speaker has open: u1 kind (0 text on screen, 1 closed), u2 text id; relayed to the
-        // party members in the same scene (the speaker repeats kind 0 about once a second while the box stays open)
-        CLIENT_PACKET_STORY_DIALOGUE = 43,
-        // u1 1 if vanilla time would pass in the sender's current scene (scene time increment not 0), else 0;
-        // the server clock only runs while at least one player reports 1
-        CLIENT_PACKET_SET_TIME_FLOWS = 44
+    CLIENT_PACKET_STORY_PROGRESS = 38,
+    CLIENT_PACKET_STORY_TIME_VOTE = 39,
+    CLIENT_PACKET_STORY_SHARE_ITEM = 40,
+    // u1 counter id (STORY_COUNTER_*), u2 amount to add; the server adds it to the team save and answers everybody
+    CLIENT_PACKET_STORY_ADD_COUNTER = 41,
+    // a story cutscene started here: u1 kind (0 script, 1 scene cutscene transition, 2 script built into an actor),
+    // u2 entrance, u2 cutscene index, u2 length + path (kind 0) or name (kind 2); relayed to the party members in the
+    // same scene
+    CLIENT_PACKET_STORY_CUTSCENE = 42,
+    // key NPC dialogue the speaker has open: u1 kind (0 text on screen, 1 closed), u2 text id; relayed to the
+    // party members in the same scene (the speaker repeats kind 0 about once a second while the box stays open)
+    CLIENT_PACKET_STORY_DIALOGUE = 43,
+    // u1 1 if vanilla time would pass in the sender's current scene (scene time increment not 0), else 0;
+    // the server clock only runs while at least one player reports 1
+    CLIENT_PACKET_SET_TIME_FLOWS = 44,
+    // warp vote before a scene cutscene transition: u1 action (STORY_WARP_*: 0 withdraw, 1 this player's transition
+    // is on hold, 2 ready, 3 go without waiting), u2 entrance, u2 cutscene index (both 0 unless action 1)
+    CLIENT_PACKET_STORY_WARP_VOTE = 45
 
 };
 
@@ -108,17 +111,23 @@ enum ServerPackets {
     SERVER_PACKET_UPDATE_PARTY_SETTINGS = 34,
     SERVER_PACKET_UPDATE_DUNGEON_KEYS = 35,
 
-        SERVER_PACKET_STORY_STATE = 36,
-        SERVER_PACKET_STORY_VOTE_STATUS = 37,
-        SERVER_PACKET_STORY_TRAVEL = 38,
-        SERVER_PACKET_STORY_SET_ERA = 39,
-        SERVER_PACKET_STORY_SHARE_ITEM = 40,
-        // a permanent dungeon switch or clear flag was switched off again (u1 sceneNum, u4 switch mask, u4 clear mask)
-        SERVER_PACKET_STORY_DUNGEON_CLEAR = 41,
-        // u2 sender network id, then the CLIENT_PACKET_STORY_CUTSCENE fields
-        SERVER_PACKET_STORY_CUTSCENE = 42,
-        // u2 sender network id, then the CLIENT_PACKET_STORY_DIALOGUE fields
-        SERVER_PACKET_STORY_DIALOGUE = 43
+    SERVER_PACKET_STORY_STATE = 36,
+    SERVER_PACKET_STORY_VOTE_STATUS = 37,
+    SERVER_PACKET_STORY_TRAVEL = 38,
+    SERVER_PACKET_STORY_SET_ERA = 39,
+    SERVER_PACKET_STORY_SHARE_ITEM = 40,
+    // a permanent dungeon switch or clear flag was switched off again (u1 sceneNum, u4 switch mask, u4 clear mask)
+    SERVER_PACKET_STORY_DUNGEON_CLEAR = 41,
+    // u2 sender network id, then the CLIENT_PACKET_STORY_CUTSCENE fields
+    SERVER_PACKET_STORY_CUTSCENE = 42,
+    // u2 sender network id, then the CLIENT_PACKET_STORY_DIALOGUE fields
+    SERVER_PACKET_STORY_DIALOGUE = 43,
+    // warp vote in the receiver's scene: u1 state (0 over, 1 running, 2 over and the warp goes ahead), u1 ready,
+    // u1 total, u1 role of the receiver (0 not ready, 1 ready, 2 holding a warp), u1 length + name of the member
+    // who started it, u1 count, then u1 length + name of each member not ready yet
+    SERVER_PACKET_STORY_WARP_STATUS = 44,
+    // to a member holding a warp: everybody is ready (or nobody else is there), run the transition now
+    SERVER_PACKET_STORY_WARP_GO = 45
 };
 
 static const int PLAYER_PUPPET_ROOM = -1;
