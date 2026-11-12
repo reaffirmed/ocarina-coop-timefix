@@ -1,5 +1,6 @@
 #include "ZeldaOnlineClient.hpp"
 #include "ZeldaOnlineRoomWindow.hpp"
+#include "ZeldaOnlineLobby.hpp"
 #include "soh/SohGui/SohGui.hpp"
 #include "soh/SohGui/SohMenu.h"
 #include "soh/util.h"
@@ -56,6 +57,16 @@ void ZeldaOnlineMainMenu(WidgetInfo& info) {
 
     if (ImGui::Button("Open Window", ImVec2(-1.0f, 0.0f)))
         ShowZeldaOnlineWindow();
+
+    UIWidgets::PopStyleButton();
+
+    ImGui::Spacing();
+
+    UIWidgets::PushStyleButton(UIWidgets::ColorValues.at(UIWidgets::Colors::Green));
+
+    // host or join over Steam and pick the team playthrough
+    if (ImGui::Button("Co-op Lobby", ImVec2(-1.0f, 0.0f)) && ZeldaOnline::CoopLobbyWindow::Instance != nullptr)
+        ZeldaOnline::CoopLobbyWindow::Instance->Open();
 
     UIWidgets::PopStyleButton();
 }

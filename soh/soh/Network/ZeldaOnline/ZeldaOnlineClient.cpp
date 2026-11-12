@@ -266,6 +266,11 @@ void ZeldaOnlineClient::Connect() {
             m_port = atoi(over.c_str() + colon + 1);
         }
     }
+    // the Co-op Lobby started its own helper: connect to that, whatever the saved server is
+    if (m_lobbyPort != 0) {
+        m_host = m_lobbyHost;
+        m_port = m_lobbyPort;
+    }
 
 
     std::vector<std::string> archives;
@@ -584,6 +589,69 @@ void ZeldaOnlineClient::LoadPartySettings() {
         ZeldaOnlineRoomWindow::Instance->GetPartySettings() = m_partySettings;
 }
 
+// Co-op Lobby ----------------------------------------------------------------------------------------------------
+
+void ZeldaOnlineClient::LobbyConnect(LobbyRole role, const std::string& host, int port, const std::string& storyCode) {
+    if (isEnabled) {
+        m_autoReconnect = false;
+        ZNetworking::Disable();
+    }
+    m_lobbyRole = role;
+    m_lobbyHost = host;
+    m_lobbyPort = port;
+    m_lobbyCode = storyCode;
+    m_lobbyPartyRequested = false;
+    m_lobbyInvited.clear();
+    Connect();
+}
+
+void ZeldaOnlineClient::LobbyLeave() {
+    if (m_lobbyRole == LobbyRole::None)
+        return;
+    m_lobbyRole = LobbyRole::None;
+    m_lobbyPort = 0;
+    m_lobbyCode.clear();
+    m_lobbyInvited.clear();
+    if (isEnabled)
+        Disconnect();
+}
+
+// The lobby host's party: Story Co-op with the playthrough's team code, so the server loads that team save.
+void ZeldaOnlineClient::LobbyAfterAuth() {
+    if (m_lobbyRole != LobbyRole::Host || m_partyID != 0 || m_lobbyPartyRequested)
+        return;
+    m_lobbyPartyRequested = true;
+    m_partySettings.storyCoop = true;
+    m_partySettings.storyCode = m_lobbyCode;
+    if (ZeldaOnlineRoomWindow::Instance != nullptr)
+        ZeldaOnlineRoomWindow::Instance->GetPartySettings() = m_partySettings;
+    CVarSetInteger("gZeldaOnline.Party.StoryCoop", 1);
+    CVarSetString("gZeldaOnline.Party.StoryCode", m_lobbyCode.c_str());
+    Ship::Context::GetRawInstance()->GetWindow()->GetGui()->SaveConsoleVariablesNextFrame();
+    WritePacket(newPacket(CLIENT_PACKET_PARTY_CREATE) << BuildPartySettingsJSON(m_partySettings));
+}
+
+// Everybody on the lobby host's server came in through the host's Steam lobby, so they are all invited.
+void ZeldaOnlineClient::LobbyInviteEveryone() {
+    auto* window = ZeldaOnlineRoomWindow::Instance;
+    if (m_lobbyRole != LobbyRole::Host || m_partyID == 0 || window == nullptr || !window->IsPartyAdmin())
+        return;
+    for (const auto& entry : window->Players()) {
+        if (entry.isInParty || entry.networkID == (uint32_t)m_myNetworkID || m_lobbyInvited.count(entry.networkID))
+            continue;
+        m_lobbyInvited.insert(entry.networkID);
+        WritePacket(newPacket(CLIENT_PACKET_PARTY_INVITE) << PackedUInt2((uint16_t)entry.networkID));
+    }
+}
+
+// A lobby joiner takes the host's invite straight away.
+bool ZeldaOnlineClient::LobbyAutoAccept(uint32_t fromNetworkID, uint32_t partyID) {
+    if (m_lobbyRole != LobbyRole::Join || m_partyID != 0)
+        return false;
+    WritePacket(newPacket(CLIENT_PACKET_PARTY_JOIN) << PackedUInt2((uint16_t)fromNetworkID) << PackedUInt4(partyID));
+    return true;
+}
+
 void ZeldaOnlineClient::OnConnected() {
     DbgPrintf("OnConnected()\n");
     m_sendFullPlayerProps = true;
@@ -614,6 +682,8 @@ void ZeldaOnlineClient::OnDisconnected() {
     m_didDisconnect = true;
     m_hasWorldTime = false;
     m_partyID = 0U;
+    m_lobbyPartyRequested = false; // a reconnecting lobby host creates its party again
+    m_lobbyInvited.clear();
     StoryRefreshState();
     printf("PLAYER DISCONNECTED\n");
     RegisterNetworkingHook(false);
@@ -907,6 +977,7 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
 
             WritePacket(newPacket(CLIENT_PACKET_INIT_PLAYER_LIST));
             SendTimeFlowsIfChanged();
+            LobbyAfterAuth();
         } break;
 
         case SERVER_PACKET_DESTROY_ACTOR: {
@@ -1346,6 +1417,7 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
                     window->AddPlayer(entry);
 
             }
+            LobbyInviteEveryone();
         } break;
 
         case SERVER_PACKET_PLAYER_LIST_REMOVE: {
@@ -1356,6 +1428,7 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
 
             if (ZeldaOnlineRoomWindow::Instance != nullptr)
                 ZeldaOnlineRoomWindow::Instance->RemovePlayer(networkID);
+            m_lobbyInvited.erase(networkID);
 
             
         } break;
@@ -1408,6 +1481,7 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
                 m_partySize = 1;
 
             StoryRefreshState();
+            LobbyInviteEveryone();
 
             if (gPlayState && (IsDungeonScene(gPlayState->sceneNum) || IsBossScene(gPlayState->sceneNum)))
                 ReloadSceneInPlace(gPlayState);
@@ -1423,6 +1497,9 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
             uint32_t partyID = (uint32_t)(packet.Read<PackedUInt4>().value());
 
             if (partyID == 0 || partyID == m_partyID)
+                break;
+
+            if (LobbyAutoAccept(fromNetworkID, partyID))
                 break;
 
             if (ZeldaOnlineRoomWindow::Instance != nullptr)

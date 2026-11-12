@@ -6,6 +6,35 @@ Story Co-op is an opt-in party setting for ShipwrightOnline. It turns a party in
 
 Open the party window, then tick **Story Co-op** in the party settings (party admin only). A second option, **Share Ammo, Rupees & HP**, is available once Story Co-op is on and is off by default.
 
+## Co-op Lobby (host and join from the game)
+
+The **Co-op Lobby** window opens on the title screen (turn that off with **Show at the title screen**; it is always in
+Network > Zelda Online > Co-op Lobby). It needs `OOTSteamLink` and `OOTServer` from the download next to the game, and
+Steam running (Windows and Linux).
+
+- **Host a game** lists your playthroughs, newest first, with the date you last played, the save file you used and who
+  played with you. **Continue this playthrough** (or a double click) starts the server and a friends-only Steam lobby
+  in the background, connects you, and creates a Story Co-op party with that playthrough's team code, so the server
+  loads its team save. **Start new** makes a new playthrough with a fresh team code. Right-click a playthrough to rename
+  it, copy its team code or remove it from the list (the team save itself stays on the server).
+- A playthrough is hosted under the nickname it was first hosted with, because the server keys the team save by the
+  host's nickname and the team code. The lobby switches back to that name and says so.
+- Everybody who connects to the host's server is invited to the party by itself.
+- **Join a friend** lists the Steam friends who are hosting. Click one to join; the host's invite is accepted by
+  itself. Accepting a Steam invite, or Join Game in the Steam friends list, works too while the list is open.
+- Then everyone picks a save file on the normal file select screen. The lobby points at the file you used for this
+  playthrough last time; any file works, because the team progress is merged into it.
+- **Stop hosting** saves the team progress and stops the server. Closing the game does the same.
+- The lobby's playthrough list is `coop-playthroughs.json` in the game's folder. A team code that was in use before the
+  lobby existed is added to it as "Earlier playthrough".
+- `Host over Steam` / `Join over Steam` and connecting by address still work as before. A game started by them does not
+  open the lobby.
+
+How it works: the lobby starts `OOTSteamLink host --no-game` or `join --no-launch` hidden, with `--status-file` and
+`--parent-pid` (see `tools/steamlink/README.md`), and connects the online client to the local port the helper reports.
+Code: `soh/soh/Network/ZeldaOnline/ZeldaOnlineLobby.*`, `ZeldaOnlineLobbyHelper.cpp`, and `LobbyConnect` /
+`LobbyAfterAuth` / `LobbyInviteEveryone` / `LobbyAutoAccept` in `ZeldaOnlineClient.cpp`.
+
 ## What is shared
 
 - **Items:** equipment, upgrades, quest items, songs, medallions, stones, heart containers and pieces, magic, dungeon items, small keys, boss keys, bottles themselves, Ruto's Letter and the child trade items up to Zelda's Letter (Weird Egg, Chicken, Zelda's Letter). When one member gets one, every member has it.
