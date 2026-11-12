@@ -54,6 +54,41 @@ static std::string FileLabel(int fileNum) {
 
 // ---------------------------------------------------------------------------------------------- playthrough list
 
+// The party settings this player used last (the online window's party settings), the start for a new playthrough.
+static PartySettings SettingsFromCVars() {
+    PartySettings s;
+    s.privateDungeons = CVarGetInteger("gZeldaOnline.Party.PrivateDungeons", 0) != 0;
+    s.extraEnemies = CVarGetInteger("gZeldaOnline.Party.ExtraEnemies", 0) != 0;
+    s.extraEnemyWeight = CVarGetFloat("gZeldaOnline.Party.ExtraEnemyWeight", 1.0f);
+    s.healthMultiplier = CVarGetInteger("gZeldaOnline.Party.HealthMultiplier", 0) != 0;
+    s.enemyHealthWeight = CVarGetFloat("gZeldaOnline.Party.EnemyHealthWeight", 1.0f);
+    s.bossHealthWeight = CVarGetFloat("gZeldaOnline.Party.BossHealthWeight", 1.0f);
+    s.shareAmmoRupeesHp = CVarGetInteger("gZeldaOnline.Party.ShareAmmoRupeesHp", 0) != 0;
+    s.storyCoop = true;
+    return s;
+}
+
+static nlohmann::json SettingsToJson(const PartySettings& s) {
+    return { { "privateDungeons", s.privateDungeons },     { "extraEnemies", s.extraEnemies },
+             { "extraEnemyWeight", s.extraEnemyWeight },   { "healthMultiplier", s.healthMultiplier },
+             { "enemyHealthWeight", s.enemyHealthWeight }, { "bossHealthWeight", s.bossHealthWeight },
+             { "shareAmmoRupeesHp", s.shareAmmoRupeesHp } };
+}
+
+static PartySettings SettingsFromJson(const nlohmann::json& j) {
+    PartySettings s = SettingsFromCVars();
+    if (!j.is_object())
+        return s;
+    s.privateDungeons = j.value("privateDungeons", s.privateDungeons);
+    s.extraEnemies = j.value("extraEnemies", s.extraEnemies);
+    s.extraEnemyWeight = std::clamp(j.value("extraEnemyWeight", s.extraEnemyWeight), 0.0f, 5.0f);
+    s.healthMultiplier = j.value("healthMultiplier", s.healthMultiplier);
+    s.enemyHealthWeight = std::clamp(j.value("enemyHealthWeight", s.enemyHealthWeight), 0.0f, 5.0f);
+    s.bossHealthWeight = std::clamp(j.value("bossHealthWeight", s.bossHealthWeight), 0.0f, 5.0f);
+    s.shareAmmoRupeesHp = j.value("shareAmmoRupeesHp", s.shareAmmoRupeesHp);
+    return s;
+}
+
 void CoopPlaythroughList::Load() {
     hosted.clear();
     joined.clear();
@@ -70,6 +105,7 @@ void CoopPlaythroughList::Load() {
                 p.lastFile = e.value("lastFile", -1);
                 p.lastPlayers = e.value("lastPlayers", std::string());
                 p.hostNick = e.value("hostNick", std::string());
+                p.settings = SettingsFromJson(e.value("settings", nlohmann::json()));
                 if (!p.code.empty())
                     hosted.push_back(p);
             }
@@ -94,6 +130,7 @@ void CoopPlaythroughList::Load() {
         p.code = earlier;
         p.created = (int64_t)time(nullptr);
         p.hostNick = CVarGetString("gZeldaOnline.Nickname", "Player");
+        p.settings = SettingsFromCVars();
         hosted.push_back(p);
         Save();
     }
@@ -110,7 +147,8 @@ void CoopPlaythroughList::Save() const {
                                 { "lastPlayed", p.lastPlayed },
                                 { "lastFile", p.lastFile },
                                 { "lastPlayers", p.lastPlayers },
-                                { "hostNick", p.hostNick } });
+                                { "hostNick", p.hostNick },
+                                { "settings", SettingsToJson(p.settings) } });
     }
     j["joined"] = nlohmann::json::array();
     for (const auto& p : joined)
@@ -182,8 +220,14 @@ void CoopLobbyWindow::ConnectClient() {
         client->Enable();
     }
     const bool host = m_helper.hosting;
+    PartySettings settings;
+    if (host) {
+        if (CoopPlaythrough* p = m_list.FindByCode(m_activeCode))
+            settings = p->settings;
+        settings.storyCode = m_activeCode;
+    }
     client->LobbyConnect(host ? ZeldaOnlineClient::LobbyRole::Host : ZeldaOnlineClient::LobbyRole::Join, "127.0.0.1",
-                         m_helper.port, host ? m_activeCode : std::string());
+                         m_helper.port, settings);
     m_clientStarted = true;
     if (!host)
         m_connectedTo = m_helper.hostName;
@@ -332,9 +376,12 @@ void CoopLobbyWindow::Draw() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14.0f, 12.0f));
     const ImVec2 size = ImVec2(ImGui::GetFontSize() * 30.0f, 0.0f); // follows the menu's font scale
     auto vp = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(ImVec2(vp->Pos.x + vp->Size.x * 0.5f, vp->Pos.y + vp->Size.y * 0.5f), ImGuiCond_Appearing,
+    // kept in the middle of the screen as the pages change size
+    ImGui::SetNextWindowPos(ImVec2(vp->Pos.x + vp->Size.x * 0.5f, vp->Pos.y + vp->Size.y * 0.5f), ImGuiCond_Always,
                             ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(size, ImGuiCond_Always);
+    // tall pages (many playthroughs, the story settings) scroll instead of running off the screen
+    ImGui::SetNextWindowSizeConstraints(ImVec2(size.x, 0.0f), ImVec2(size.x, vp->Size.y * 0.9f));
     bool open = true;
     if (ImGui::Begin("Co-op Lobby###zo_coop_lobby", &open,
                      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize |
@@ -477,6 +524,65 @@ void CoopLobbyWindow::DrawPlaythroughRow(int index) {
     ImGui::PopID();
 }
 
+// The host's story settings for a playthrough. Returns true when one changed.
+bool CoopLobbyWindow::DrawStorySettings(PartySettings& s) {
+    bool changed = false;
+    // a slider counts as changed when it is let go, not on every frame of a drag
+    auto slider = [](const char* id, float* v, const char* format) {
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        ImGui::SliderFloat(id, v, 0.0f, 5.0f, format, ImGuiSliderFlags_AlwaysClamp);
+        return ImGui::IsItemDeactivatedAfterEdit();
+    };
+    auto tooltip = [](const char* text) {
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("%s", text);
+    };
+    ImGui::PushID("##zo_story_settings");
+    ImGui::Indent();
+
+    changed |= ImGui::Checkbox("Share ammo, rupees and health", &s.shareAmmoRupeesHp);
+    tooltip("Off: everybody has their own arrows, seeds, bombs, rupees and hearts.\n"
+            "On: one shared pool for the whole party.");
+
+    if (ImGui::Checkbox("Private dungeons", &s.privateDungeons)) {
+        changed = true;
+        if (!s.privateDungeons) {
+            s.extraEnemies = false;
+            s.healthMultiplier = false;
+        }
+    }
+    tooltip("Your party gets its own copy of every dungeon, apart from other players on the server.\n"
+            "Needed for the difficulty settings below.");
+
+    ImGui::BeginDisabled(!s.privateDungeons);
+    changed |= ImGui::Checkbox("Extra enemies", &s.extraEnemies);
+    tooltip("More enemies in dungeons, the more players the more enemies.");
+    if (s.extraEnemies) {
+        changed |= slider("##zo_lobby_extra", &s.extraEnemyWeight, "Amount %.1f");
+    }
+    changed |= ImGui::Checkbox("Tougher enemies", &s.healthMultiplier);
+    tooltip("Enemies and bosses get more health for each player in the party:\n"
+            "+0.25 x party size x the weight below.");
+    if (s.healthMultiplier) {
+        changed |= slider("##zo_lobby_enemy_hp", &s.enemyHealthWeight, "Enemy health %.1f");
+        changed |= slider("##zo_lobby_boss_hp", &s.bossHealthWeight, "Boss health %.1f");
+    }
+    ImGui::EndDisabled();
+
+    ImGui::Unindent();
+    ImGui::PopID();
+    return changed;
+}
+
+void CoopLobbyWindow::OnStorySettingsChanged(CoopPlaythrough& p) {
+    p.settings.storyCoop = true;
+    p.settings.storyCode = p.code;
+    m_list.Save();
+    // while hosting this playthrough the party gets the change right away
+    if (Client() != nullptr && p.code == m_activeCode && m_clientStarted)
+        Client()->LobbyUpdateSettings(p.settings);
+}
+
 void CoopLobbyWindow::DrawHostPick() {
     EnsureListLoaded();
     ImGui::TextUnformatted("Which playthrough?");
@@ -506,9 +612,21 @@ void CoopLobbyWindow::DrawHostPick() {
             m_confirmForget = -1;
     }
 
+    const bool haveSelection = m_selected >= 0 && m_selected < (int)m_list.hosted.size();
+    if (haveSelection) {
+        ImGui::Spacing();
+        CoopPlaythrough& p = m_list.hosted[m_selected];
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+        if (ImGui::CollapsingHeader(
+                (std::string(ICON_FA_COG " Story settings: ") + p.name + "###zo_story_settings").c_str())) {
+            if (DrawStorySettings(p.settings))
+                OnStorySettingsChanged(p);
+        }
+    }
+
     ImGui::Spacing();
-    ImGui::BeginDisabled(m_selected < 0 || m_selected >= (int)m_list.hosted.size());
-    if (BigButton(ICON_FA_PLAY "  Continue"))
+    ImGui::BeginDisabled(!haveSelection);
+    if (BigButton(ICON_FA_PLAY "  Host this playthrough"))
         StartHosting(m_selected);
     ImGui::EndDisabled();
 
@@ -525,10 +643,11 @@ void CoopLobbyWindow::DrawHostPick() {
         p.code = GenerateStoryCode();
         p.created = (int64_t)time(nullptr);
         p.hostNick = CVarGetString("gZeldaOnline.Nickname", "Player");
+        p.settings = SettingsFromCVars();
         m_list.hosted.insert(m_list.hosted.begin(), p);
         m_list.Save();
         m_newName[0] = '\0';
-        StartHosting(0);
+        m_selected = 0; // its story settings show, then Host this playthrough
     }
 
     ImGui::Spacing();
@@ -671,10 +790,24 @@ void CoopLobbyWindow::DrawSession() {
             }
         }
     } else {
+        CoopPlaythrough* p = host ? m_list.FindByCode(m_activeCode) : nullptr;
+        if (p != nullptr && m_showSettings) {
+            ImGui::SeparatorText("Story settings");
+            if (DrawStorySettings(p->settings))
+                OnStorySettingsChanged(*p);
+            ImGui::Spacing();
+        }
         if (ImGui::Button(host ? ICON_FA_STOP " Stop hosting" : ICON_FA_SIGN_OUT " Leave"))
             StopAll();
         if (host && ImGui::IsItemHovered())
             ImGui::SetTooltip("Ends the game for everybody. The team progress is saved first.");
+        if (p != nullptr) {
+            ImGui::SameLine();
+            if (ImGui::Button(m_showSettings ? ICON_FA_COG " Hide story settings" : ICON_FA_COG " Story settings"))
+                m_showSettings = !m_showSettings;
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Changes apply to everybody right away");
+        }
     }
 }
 

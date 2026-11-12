@@ -24,7 +24,8 @@ by lukegrahamSydney. Two or more players go through the adventure together as on
    them.
 
 **Or do it all from inside the game:** start the game normally and the **Co-op Lobby** opens on the title screen.
-Choose **Host a game**, pick the playthrough to continue (or start a new one), and the server, the Steam lobby and the
+Choose **Host a game**, pick the playthrough to continue (or start a new one), set its story settings (shared ammo
+and health, extra or tougher enemies), and the server, the Steam lobby and the
 Story Co-op party are set up for you. Your friend chooses **Join a friend** and clicks your name; they are added to the
 party by themselves. Then everyone picks a save file as usual. The lobby remembers each playthrough, when you last
 played it, with whom and on which file. It is also in the menu under Network > Zelda Online > Co-op Lobby.

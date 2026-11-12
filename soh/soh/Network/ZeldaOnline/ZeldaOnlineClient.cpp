@@ -591,7 +591,21 @@ void ZeldaOnlineClient::LoadPartySettings() {
 
 // Co-op Lobby ----------------------------------------------------------------------------------------------------
 
-void ZeldaOnlineClient::LobbyConnect(LobbyRole role, const std::string& host, int port, const std::string& storyCode) {
+// The party settings are remembered for the next party this player creates.
+static void SavePartySettingsCVars(const PartySettings& settings) {
+    CVarSetInteger("gZeldaOnline.Party.PrivateDungeons", settings.privateDungeons ? 1 : 0);
+    CVarSetInteger("gZeldaOnline.Party.ExtraEnemies", settings.extraEnemies ? 1 : 0);
+    CVarSetFloat("gZeldaOnline.Party.ExtraEnemyWeight", settings.extraEnemyWeight);
+    CVarSetInteger("gZeldaOnline.Party.HealthMultiplier", settings.healthMultiplier ? 1 : 0);
+    CVarSetFloat("gZeldaOnline.Party.EnemyHealthWeight", settings.enemyHealthWeight);
+    CVarSetFloat("gZeldaOnline.Party.BossHealthWeight", settings.bossHealthWeight);
+    CVarSetInteger("gZeldaOnline.Party.StoryCoop", settings.storyCoop ? 1 : 0);
+    CVarSetInteger("gZeldaOnline.Party.ShareAmmoRupeesHp", settings.shareAmmoRupeesHp ? 1 : 0);
+    CVarSetString("gZeldaOnline.Party.StoryCode", settings.storyCode.c_str());
+    Ship::Context::GetRawInstance()->GetWindow()->GetGui()->SaveConsoleVariablesNextFrame();
+}
+
+void ZeldaOnlineClient::LobbyConnect(LobbyRole role, const std::string& host, int port, const PartySettings& settings) {
     if (isEnabled) {
         m_autoReconnect = false;
         ZNetworking::Disable();
@@ -599,7 +613,8 @@ void ZeldaOnlineClient::LobbyConnect(LobbyRole role, const std::string& host, in
     m_lobbyRole = role;
     m_lobbyHost = host;
     m_lobbyPort = port;
-    m_lobbyCode = storyCode;
+    m_lobbySettings = settings;
+    m_lobbySettings.storyCoop = true; // the lobby is for Story Co-op
     m_lobbyPartyRequested = false;
     m_lobbyInvited.clear();
     Connect();
@@ -610,25 +625,39 @@ void ZeldaOnlineClient::LobbyLeave() {
         return;
     m_lobbyRole = LobbyRole::None;
     m_lobbyPort = 0;
-    m_lobbyCode.clear();
     m_lobbyInvited.clear();
     if (isEnabled)
         Disconnect();
 }
 
-// The lobby host's party: Story Co-op with the playthrough's team code, so the server loads that team save.
+// The lobby host's party: Story Co-op with the playthrough's story settings and team code, so the server loads that
+// team save.
 void ZeldaOnlineClient::LobbyAfterAuth() {
     if (m_lobbyRole != LobbyRole::Host || m_partyID != 0 || m_lobbyPartyRequested)
         return;
     m_lobbyPartyRequested = true;
-    m_partySettings.storyCoop = true;
-    m_partySettings.storyCode = m_lobbyCode;
+    m_partySettings = m_lobbySettings;
     if (ZeldaOnlineRoomWindow::Instance != nullptr)
         ZeldaOnlineRoomWindow::Instance->GetPartySettings() = m_partySettings;
-    CVarSetInteger("gZeldaOnline.Party.StoryCoop", 1);
-    CVarSetString("gZeldaOnline.Party.StoryCode", m_lobbyCode.c_str());
-    Ship::Context::GetRawInstance()->GetWindow()->GetGui()->SaveConsoleVariablesNextFrame();
+    SavePartySettingsCVars(m_partySettings);
     WritePacket(newPacket(CLIENT_PACKET_PARTY_CREATE) << BuildPartySettingsJSON(m_partySettings));
+}
+
+bool ZeldaOnlineClient::LobbyUpdateSettings(const PartySettings& settings) {
+    if (m_lobbyRole != LobbyRole::Host)
+        return false;
+    m_lobbySettings = settings;
+    m_lobbySettings.storyCoop = true;
+    auto* window = ZeldaOnlineRoomWindow::Instance;
+    if (m_partyID == 0 || window == nullptr || !window->IsPartyAdmin())
+        return false;
+    // the team code picks the team save when the party is created; changing it later would do nothing
+    m_lobbySettings.storyCode = m_partySettings.storyCode;
+    window->GetPartySettings() = m_lobbySettings;
+    WritePacket(newPacket(CLIENT_PACKET_UPDATE_PARTY_SETTINGS) << BuildPartySettingsJSON(m_lobbySettings));
+    SetPartySettings(m_lobbySettings);
+    SavePartySettingsCVars(m_partySettings);
+    return true;
 }
 
 // Everybody on the lobby host's server came in through the host's Steam lobby, so they are all invited.

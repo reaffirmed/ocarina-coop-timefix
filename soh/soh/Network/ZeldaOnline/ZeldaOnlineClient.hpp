@@ -196,7 +196,7 @@ class ZeldaOnlineClient : public ZNetworking {
 
   private:
     LobbyRole m_lobbyRole = LobbyRole::None;
-    std::string m_lobbyCode;                 // host: the team code of the playthrough
+    PartySettings m_lobbySettings;           // host: the playthrough's story settings and team code
     std::string m_lobbyHost;                 // the helper's local address, used instead of the saved server
     int m_lobbyPort = 0;
     bool m_lobbyPartyRequested = false;
@@ -368,9 +368,12 @@ class ZeldaOnlineClient : public ZNetworking {
     void Connect();
     void Disconnect();
 
-    // Connects to the lobby helper's local port. A host creates a Story Co-op party with `storyCode` and invites every
-    // player who connects; a joiner accepts the first party invite it gets.
-    void LobbyConnect(LobbyRole role, const std::string& host, int port, const std::string& storyCode);
+    // Connects to the lobby helper's local port. A host creates a Story Co-op party with `settings` (the playthrough's
+    // story settings and team code) and invites every player who connects; a joiner accepts the first party invite.
+    void LobbyConnect(LobbyRole role, const std::string& host, int port, const PartySettings& settings);
+    // The lobby host changed the story settings: applied to the party right away. False when not the lobby host's
+    // party (yet); the settings are then used when the party is created.
+    bool LobbyUpdateSettings(const PartySettings& settings);
     // Disconnects and goes back to the saved server settings.
     void LobbyLeave();
     LobbyRole GetLobbyRole() const {

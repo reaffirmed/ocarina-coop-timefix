@@ -7,6 +7,7 @@
 // helper is ready the game connects to it, and ZeldaOnlineClient forms the party by itself: the host creates a Story
 // Co-op party with the playthrough's team code and invites everybody who connects, the others accept that invite.
 #include <ship/window/gui/GuiWindow.h>
+#include "PartySettings.hpp"
 #include <cstdint>
 #include <ctime>
 #include <string>
@@ -23,6 +24,7 @@ struct CoopPlaythrough {
     int lastFile = -1;       // save file used last time (0 based), -1 unknown
     std::string lastPlayers; // who played last time, for display only
     std::string hostNick;    // the nickname it was hosted under: the team save is stored under it
+    PartySettings settings;  // the host's story settings for this playthrough (storyCode is `code`)
 };
 
 // Playthroughs this player hosted, plus the save file they used last with each friend they joined.
@@ -135,6 +137,9 @@ class CoopLobbyWindow : public Ship::GuiWindow {
     void DrawJoinPick();
     void DrawNicknameField();
     void DrawPlaythroughRow(int index);
+    bool DrawStorySettings(PartySettings& settings);
+    void OnStorySettingsChanged(CoopPlaythrough& p);
+    bool m_showSettings = false;
 
     void StartHosting(int index);
     void StartJoining();
