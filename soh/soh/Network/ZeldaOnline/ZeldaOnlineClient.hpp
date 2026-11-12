@@ -154,6 +154,27 @@ class ZeldaOnlineClient : public ZNetworking {
     int m_storyTotal = 0;
     std::vector<std::string> m_storyMissing;
 
+    // Story Co-op warp vote: a transition of this player into a scene cutscene (a blue warp, the Chamber of Sages) is
+    // held until the members in the same scene are ready, and another member's held warp asks this player
+    bool m_storyWarpHold = false;     // this player's own transition is held
+    bool m_storyWarpHeard = false;    // the server answered the hold (a silent or older server lets it go)
+    bool m_storyWarpGo = false;       // the server said go
+    bool m_storyWarpReleased = false; // the held transition was just let go: announce it, no second vote
+    bool m_storyWarpFroze = false;    // this client set the cutscene flag on the player
+    int m_storyWarpHoldFrames = 0;
+    uint16_t m_storyWarpEntrance = 0; // the held transition, restored when it goes ahead
+    uint16_t m_storyWarpCsIndex = 0;
+    uint8_t m_storyWarpTransType = 0;
+    uint8_t m_storyWarpNextTransType = 0;
+    bool m_storyWarpVoting = false; // a vote runs in this scene and this player is asked
+    bool m_storyWarpReady = false;  // this player said ready and waits for the others
+    int m_storyWarpVoted = 0;
+    int m_storyWarpTotal = 0;
+    std::string m_storyWarpStarter;
+    std::vector<std::string> m_storyWarpMissing;
+    int m_storyWarpHolds = 0; // auto-test counters
+    int m_storyWarpAsked = 0;
+
     // Story Co-op cutscenes watched together: a story cutscene that starts here is started for the members in the same
     // scene too (a scripted cutscene by its resource path, a scene cutscene by the transition that loads it)
     std::string m_storyCsPath;               // keeps the path alive while csCtx.segment points at it
@@ -171,6 +192,9 @@ class ZeldaOnlineClient : public ZNetworking {
     uint16_t m_storyCsPendingEntrance = 0;
     uint16_t m_storyCsPendingIndex = 0;
     std::string m_storyCsPendingPath;
+    int m_storyCsPromptFrames = 0; // countdown before a member's cutscene starts here (L skips it)
+    int m_storyWarpJoinFrames = 0; // this player was ready for a warp vote that just went ahead
+    int m_storyCsSkipped = 0;
 
     // Story Co-op key dialogue: the text boxes of story NPCs are shown to the members in the same scene
     bool m_storyDlgSpeaking = false;         // this player has a key conversation open
@@ -245,6 +269,15 @@ class ZeldaOnlineClient : public ZNetworking {
     void OnStoryVoteStatus(ByteStream& packet);
     void OnStoryTravel(ByteStream& packet);
     void OnStorySetEra(ByteStream& packet);
+    void StoryWatchWarp();
+    void StoryStartWarpHold(PlayState* play);
+    void StoryEndWarpHold(bool run);
+    void StoryEndWarpVote();
+    void StorySetWarpFreeze(bool freeze);
+    std::string StoryWarpText() const;
+    std::string StoryCsPromptText() const;
+    void OnStoryWarpStatus(ByteStream& packet);
+    void OnStoryWarpGo(ByteStream& packet);
     void StoryWatchCutscenes();
     void StoryStartRemoteCutscene();
     void StoryWatchDialogue();
