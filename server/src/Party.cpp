@@ -181,7 +181,21 @@ namespace ZeldaOnline
 			changed = true;
 		}
 
-		if (m_story.MergeFrom(incoming))
+		// a member who was away when a switch was turned off still has it on in their save: drop those bits
+		StoryProgress filtered = incoming;
+		if (!m_storyToggledOff.empty())
+		{
+			for (StorySceneFlags& scene : filtered.scenes)
+			{
+				auto off = m_storyToggledOff.find((int)scene.sceneNum);
+				if (off == m_storyToggledOff.end())
+					continue;
+				scene.swch &= ~off->second.first;
+				scene.clear &= ~off->second.second;
+			}
+		}
+
+		if (m_story.MergeFrom(filtered))
 			changed = true;
 
 		if (changed)
@@ -192,25 +206,47 @@ namespace ZeldaOnline
 
 	bool Party::StoryClearSceneBits(int sceneNum, uint32_t swchMask, uint32_t clearMask)
 	{
-		if (!m_storyCoop || !m_story.ClearSceneBits(sceneNum, swchMask, clearMask))
+		if (!m_storyCoop)
 			return false;
 
-		MarkStoryDirty();
-		return true;
+		auto& off = m_storyToggledOff[sceneNum];
+		const bool newlyOff = (off.first | swchMask) != off.first || (off.second | clearMask) != off.second;
+		off.first |= swchMask;
+		off.second |= clearMask;
+
+		const bool cleared = m_story.ClearSceneBits(sceneNum, swchMask, clearMask);
+		if (cleared || newlyOff)
+			MarkStoryDirty();
+		return cleared;
 	}
 
-	bool Party::StoryAddCounter(uint8_t counterId, int amount)
+	void Party::StoryNoteSceneBitsSet(int sceneNum, uint32_t swchMask, uint32_t clearMask)
 	{
-		if (!m_storyCoop || !m_storySeeded)
-			return false;
-
-		bool changed = false;
-		if (counterId == STORY_COUNTER_POE_POINTS)
-			changed = m_story.AddPoePoints(amount);
-
-		if (changed)
+		auto off = m_storyToggledOff.find(sceneNum);
+		if (off == m_storyToggledOff.end())
+			return;
+		const auto before = off->second;
+		off->second.first &= ~swchMask;
+		off->second.second &= ~clearMask;
+		if (off->second != before)
+		{
+			if (off->second.first == 0 && off->second.second == 0)
+				m_storyToggledOff.erase(off);
 			MarkStoryDirty();
-		return changed;
+		}
+	}
+
+	void Party::SendStoryToggledOffTo(Player* player)
+	{
+		if (player == nullptr || !m_storyCoop)
+			return;
+		for (const auto& entry : m_storyToggledOff)
+		{
+			if (entry.second.first == 0 && entry.second.second == 0)
+				continue;
+			player->SendPacket(newPacket(SERVER_PACKET_STORY_DUNGEON_CLEAR) << PackedUInt1((unsigned int)entry.first)
+				<< PackedUInt4(entry.second.first) << PackedUInt4(entry.second.second));
+		}
 	}
 
 	void Party::SendToAll(const ByteStream& payload, Player* except)
@@ -1009,6 +1045,7 @@ namespace ZeldaOnline
 	void Party::LoadStorySave()
 	{
 		fs::path path = fs::path(s_storyDir) / (MakeFileStem(m_saveKey) + ".bin");
+		LoadStoryToggledOff((fs::path(s_storyDir) / MakeFileStem(m_saveKey)).string());
 
 		for (int attempt = 0; attempt <= STORY_BACKUP_COUNT; attempt++)
 		{
@@ -1118,6 +1155,7 @@ namespace ZeldaOnline
 				m_lastBackup = now;
 			}
 
+			WriteStoryToggledOff((fs::path(s_storyDir) / MakeFileStem(m_saveKey)).string());
 			if (!WriteFileAtomic(path, blob.data(), blob.size()))
 			{
 				std::printf("Story Co-op: failed to write team save %s\n", path.string().c_str());
@@ -1133,4 +1171,61 @@ namespace ZeldaOnline
 			return false;
 		}
 	}
+
+	// <stem>.off: one line per scene, "scene swch clear" in decimal. Missing or unreadable means nothing is remembered.
+	void Party::LoadStoryToggledOff(const std::string& stemPath)
+	{
+		std::string text;
+		if (!ReadWholeFile(fs::path(stemPath + ".off"), text))
+			return;
+		size_t pos = 0;
+		while (pos < text.size())
+		{
+			size_t end = text.find('\n', pos);
+			if (end == std::string::npos)
+				end = text.size();
+			unsigned int scene = 0, swch = 0, clear = 0;
+			if (std::sscanf(text.substr(pos, end - pos).c_str(), "%u %u %u", &scene, &swch, &clear) == 3 && scene < 256)
+			{
+				auto& off = m_storyToggledOff[(int)scene];
+				off.first |= swch;
+				off.second |= clear;
+			}
+			pos = end + 1;
+		}
+	}
+
+	void Party::WriteStoryToggledOff(const std::string& stemPath)
+	{
+		std::string text;
+		for (const auto& entry : m_storyToggledOff)
+		{
+			if (entry.second.first == 0 && entry.second.second == 0)
+				continue;
+			char line[64];
+			std::snprintf(line, sizeof(line), "%d %u %u\n", entry.first, entry.second.first, entry.second.second);
+			text += line;
+		}
+		std::error_code ec;
+		fs::path path(stemPath + ".off");
+		if (text.empty())
+			fs::remove(path, ec);
+		else if (!WriteFileAtomic(path, text.data(), text.size()))
+			std::printf("Story Co-op: failed to write %s\n", path.string().c_str());
+	}
+
+	bool Party::StoryAddCounter(uint8_t counterId, int amount)
+	{
+		if (!m_storyCoop || !m_storySeeded)
+			return false;
+
+		bool changed = false;
+		if (counterId == STORY_COUNTER_POE_POINTS)
+			changed = m_story.AddPoePoints(amount);
+
+		if (changed)
+			MarkStoryDirty();
+		return changed;
+	}
+
 }

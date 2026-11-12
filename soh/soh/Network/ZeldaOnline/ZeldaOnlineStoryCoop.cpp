@@ -6,6 +6,7 @@
 // the party setting off nothing in this file runs.
 
 #include "ZeldaOnlineClient.hpp"
+#include "ZeldaOnlinePolish.hpp"
 
 #include "soh/OTRGlobals.h"
 #include "soh/SaveManager.h"
@@ -1161,9 +1162,10 @@ void ZeldaOnlineClient::StoryUpdate() {
         m_storyHasPending = false;
         m_storyPending = StoryProgress();
 
-        if (StoryApply(team) && m_storyNotifyCooldown == 0) {
-            Notification::Emit({ .message = "Party progress received" });
-            m_storyNotifyCooldown = 5 * 20;
+        StoryProgress before = StoryCapture();
+        if (StoryApply(team)) {
+            // "Zelda found the Hookshot", with its icon (ZeldaOnlinePolish.cpp)
+            CoopPolish::AnnounceProgress(before, StoryCapture());
         }
     }
 }

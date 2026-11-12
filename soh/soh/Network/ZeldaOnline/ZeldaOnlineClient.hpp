@@ -32,9 +32,11 @@ namespace ZeldaOnline {
 std::vector<std::string> MissingArchives(const std::vector<std::string>& archiveNames);
 
 struct AutoTestAccess;
+struct CoopPolish;
 
 class ZeldaOnlineClient : public ZNetworking {
     friend struct AutoTestAccess;
+    friend struct CoopPolish;
 
   private:
     static const unsigned int FRAME_HEADER_SIZE = 2;

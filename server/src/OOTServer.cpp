@@ -1378,6 +1378,18 @@ namespace ZeldaOnline
 			}
 			else break;
 
+			// Story Co-op: a switch turned on again while playing is no longer remembered as switched off
+			if (setFlag && flag < 32 && (flagType == kFlagTypeSceneSwitch || flagType == kFlagTypeSceneClear) &&
+				IsPartyScene(scene->SceneNum()))
+			{
+				if (auto party = player->GetParty())
+				{
+					uint32_t bit = 1u << flag;
+					party->StoryNoteSceneBitsSet(scene->SceneNum(), flagType == kFlagTypeSceneSwitch ? bit : 0u,
+						flagType == kFlagTypeSceneClear ? bit : 0u);
+				}
+			}
+
 			// Story Co-op: a switch that is turned back off (crystal switch, toggle) must not stay in the team save
 			if (!setFlag && flag < 32 && (flagType == kFlagTypeSceneSwitch || flagType == kFlagTypeSceneClear) &&
 				IsPartyScene(scene->SceneNum()))
@@ -1737,7 +1749,10 @@ namespace ZeldaOnline
 
 			// Story Co-op: catch the joiner up on the team save (their own upload is merged in afterwards)
 			if (party->StoryCoop() && party->StorySeeded())
+			{
 				player->SendPacket(MakeStoryStatePacket(party->Story(), STORY_FLAG_CATCH_UP));
+				party->SendStoryToggledOffTo(player);
+			}
 
 			party->OnMemberAdded(player);
 		}
@@ -1991,6 +2006,8 @@ namespace ZeldaOnline
 				StoryProgress theirs = incoming;
 				if (theirs.MergeFrom(party->Story()))
 					player->SendPacket(MakeStoryStatePacket(party->Story(), STORY_FLAG_CATCH_UP));
+				// and switch off again what was switched off while they were away
+				party->SendStoryToggledOffTo(player);
 			}
 		}
 		break;

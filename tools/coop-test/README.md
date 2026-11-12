@@ -8,7 +8,7 @@ play: the in-game test mode only turns on when `--coop-test` or `--coop-test-ext
 - The game build (`soh.exe`, `soh.o2r`, `assets/`) and the server build (`OOTServer.exe`).
 - Your own OoT NTSC 1.0 ROM, or an `oot.o2r` already generated from it for this build. The ROM is only read to
   generate `oot.o2r` once.
-- Python 3. Windows only (uses `taskkill` and hardlinks).
+- Python 3. Windows, or Linux with `soh.elf` (run it under `xvfb-run` when there is no display).
 
 ## Run
 

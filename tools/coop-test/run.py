@@ -24,6 +24,9 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+WINDOWS = os.name == "nt"
+# the game executable in the build folder: soh.exe on Windows, soh.elf on Linux (run it under Xvfb when headless)
+GAME_EXE = "soh.exe" if WINDOWS else "soh.elf"
 
 
 def link_or_copy(src, dst):
@@ -54,7 +57,7 @@ def populate(build_dir, folder, extra_o2r=None):
     for name in os.listdir(build_dir):
         src = os.path.join(build_dir, name)
         low = name.lower()
-        if os.path.isfile(src) and low.endswith((".exe", ".dll", ".o2r")):
+        if os.path.isfile(src) and (low.endswith((".exe", ".dll", ".o2r")) or name == GAME_EXE):
             if low in ("zapd.exe",):
                 continue
             link_or_copy(src, os.path.join(folder, name))
@@ -65,11 +68,15 @@ def populate(build_dir, folder, extra_o2r=None):
             link_or_copy(p, os.path.join(folder, os.path.basename(p)))
 
 
-def write_client_config(folder, width, height):
-    """Small windowed client, DX11 backend. Everything else is set by the in-game test mode."""
+def write_client_config(folder, width, height, index=0):
+    """Small windowed client, DX11 backend on Windows. Everything else is set by the in-game test mode.
+    The clients are placed side by side so both can be watched (and captured) at once."""
+    window = {"Width": width, "Height": height, "Fullscreen": {"Enabled": False},
+              "PositionX": 20 + index * (width + 20), "PositionY": 20}
+    if WINDOWS:
+        window["Backend"] = {"Id": 0, "Name": "DirectX 11"}
     cfg = {
-        "Window": {"Width": width, "Height": height, "Fullscreen": {"Enabled": False},
-                   "Backend": {"Id": 0, "Name": "DirectX 11"}},
+        "Window": window,
         "CVars": {"gOpenWindows": {"ModalWindow": 1}},
     }
     with open(os.path.join(folder, "shipofharkinian.json"), "w") as f:
@@ -87,8 +94,14 @@ def port_open(host, port):
 def kill_tree(proc):
     if proc is None or proc.poll() is not None:
         return
-    subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if WINDOWS:
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)  # started in its own session
+        except OSError:
+            proc.kill()
     try:
         proc.wait(timeout=10)
     except subprocess.TimeoutExpired:
@@ -108,9 +121,9 @@ def ensure_extracted(args, shared):
         return False
     print("[run] extracting oot.o2r (one time)...")
     log = open(os.path.join(args.work, "extract.log"), "w")
-    p = subprocess.Popen([os.path.join(shared, "soh.exe"), "--coop-test-extract-only",
+    p = subprocess.Popen([os.path.join(shared, GAME_EXE), "--coop-test-extract-only",
                           "--coop-test-rom", os.path.abspath(args.rom)],
-                         cwd=shared, stdout=log, stderr=subprocess.STDOUT)
+                         cwd=shared, stdout=log, stderr=subprocess.STDOUT, start_new_session=not WINDOWS)
     try:
         p.wait(timeout=args.extract_timeout)
     except subprocess.TimeoutExpired:
@@ -399,7 +412,7 @@ def run_clients(args, scenario_path, roles, folders, out, width, height, build_d
             except OSError:
                 pass
         populate(build_dir, folders[r], extra)
-        write_client_config(folders[r], width, height)
+        write_client_config(folders[r], width, height, roles.index(r))
     for p in out.values():
         try:
             os.remove(p)
@@ -411,9 +424,10 @@ def run_clients(args, scenario_path, roles, folders, out, width, height, build_d
         for i, r in enumerate(roles):
             cl = open(os.path.join(args.work, "stdout_%s.log" % r), "w")
             opened.append(cl)
-            cmd = [os.path.join(folders[r], "soh.exe"), "--coop-test", scenario_path, "--coop-test-role", r,
+            cmd = [os.path.join(folders[r], GAME_EXE), "--coop-test", scenario_path, "--coop-test-role", r,
                    "--coop-test-out", out[r], "--coop-test-host", "127.0.0.1", "--coop-test-port", str(args.port)]
-            procs[r] = subprocess.Popen(cmd, cwd=folders[r], stdout=cl, stderr=subprocess.STDOUT)
+            procs[r] = subprocess.Popen(cmd, cwd=folders[r], stdout=cl, stderr=subprocess.STDOUT,
+                                        start_new_session=not WINDOWS)
             print("[run] started client %s (pid %d)" % (r, procs[r].pid))
             if i + 1 < len(roles):
                 time.sleep(args.stagger)

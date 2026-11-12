@@ -6,6 +6,7 @@
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/Notification/Notification.h"
 #include "soh/frame_interpolation.h"
+#include "ZeldaOnlinePolish.hpp"
 #include "soh/OTRGlobals.h"
 #include <soh/SohGui/ImGuiUtils.h>
 #include <soh/Enhancements/item-tables/ItemTableManager.h>
@@ -526,6 +527,11 @@ std::string ZeldaOnlineClient::BuildPartySettingsJSON(const PartySettings& party
     settings["storyCoop"] = partySettings.storyCoop;
     settings["shareAmmoRupeesHp"] = partySettings.shareAmmoRupeesHp;
     settings["storyCode"] = partySettings.storyCode;
+    // the admin's game (vanilla, Master Quest, randomizer seed), so members can be told when their save differs
+    const bool admin = ZeldaOnlineRoomWindow::Instance != nullptr && ZeldaOnlineRoomWindow::Instance->IsPartyAdmin();
+    std::string hostGame = admin && !CoopPolish::LocalGame().empty() ? CoopPolish::LocalGame() : CoopPolish::HostGame();
+    if (!hostGame.empty())
+        settings["hostGame"] = hostGame;
 
     return settings.dump();
 }
@@ -547,6 +553,8 @@ bool ZeldaOnlineClient::ParsePartySettingsJSON(const std::string& partySettings,
     out.storyCoop = settings.value("storyCoop", false);
     out.shareAmmoRupeesHp = settings.value("shareAmmoRupeesHp", false);
     out.storyCode = settings.value("storyCode", std::string());
+    if (settings.contains("hostGame") && settings["hostGame"].is_string())
+        CoopPolish::SetHostGame(settings["hostGame"].get<std::string>());
     if (out.storyCode.size() > 32)
         out.storyCode.resize(32);
 
@@ -710,6 +718,8 @@ void ZeldaOnlineClient::OnConnected() {
     m_lastSentTimeFlows = 0xFF;
     WritePacket(newPacket(CLIENT_PACKET_AUTH) << CURRENT_VERSION << PackedUInt1(m_didDisconnect) << PackedUInt8(m_clientGUID));
 
+    CoopPolish::OnConnected(m_didDisconnect);
+
     //We reconnected after a disconnect. Reload the scene
     if (m_didDisconnect)
         ReloadSceneInPlace(gPlayState);
@@ -731,6 +741,8 @@ void ZeldaOnlineClient::OnDisconnected() {
     RegisterNetworkingHook(false);
     RegisterHooks(false);
     ActorControllerFactory::Instance().RegisterActorHooks(false);
+
+    CoopPolish::OnDisconnected(m_autoReconnect && CVarGetInteger("gZeldaOnline.Enabled", 0));
 
     //If we disconnected then reconnect, unless we were kicked (due to wrong version for example)
     if (m_autoReconnect && CVarGetInteger("gZeldaOnline.Enabled", 0)) {
@@ -796,18 +808,16 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
             m_autoReconnect = false;
             if (reason.rfind("Invalid client version", 0) == 0) {
                 // A ShipwrightOnline server, or a Story Co-op server from another release
-                Messagebox_ShowErrorBox(
-                    "Wrong server version",
-                    ("This server runs a different version of the online mode (" + reason +
-                     ", this game is " + CURRENT_VERSION +
-                     ").\n\nStory Co-op only works with the server from the same Story Co-op download. Use Host over "
-                     "Steam / Join over Steam, or start OOTServer from this download and connect to its address. "
-                     "Everyone needs the same release.")
-                        .c_str());
+                std::string theirs = reason.size() >= 10 ? reason.substr(reason.size() - 10) : reason;
+                CoopPolish::ShowMessage(
+                    "Different versions",
+                    "The host's game is a different release of Story Co-op (" + theirs + ", yours is " +
+                        CURRENT_VERSION +
+                        "). Everyone needs the same download: update the game, or ask the host to, then join again.");
                 break;
             }
-            Messagebox_ShowErrorBox("Disconnected",
-                                    ("You have been disconnected from the server. Reason:" + reason).c_str());
+            CoopPolish::ShowMessage("Disconnected", reason.empty() ? std::string("The host closed the connection.")
+                                                                   : "The host closed the connection: " + reason);
         } break;
 
 
@@ -1558,6 +1568,7 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
                 ZeldaOnlineRoomWindow::Instance->SetInParty(memberNetworkID, true);
 
             m_partySize = ZeldaOnlineRoomWindow::Instance->GetPartySize();
+            CoopPolish::OnMemberJoined(memberNetworkID);
         } break;
 
         case SERVER_PACKET_PARTY_MEMBER_REMOVE: {
@@ -1575,8 +1586,8 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
                 m_partySize = ZeldaOnlineRoomWindow::Instance->GetPartySize();
             } else
                 m_partySize = 1;
+            CoopPolish::OnMemberLeft(memberNetworkID);
 
-            
         } break;
 
 
@@ -1782,6 +1793,7 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
                                          : std::string();
 
                 if (getItemEntry.modIndex == MOD_NONE) {
+                    CoopPolish::NoteAnnounced(getItemEntry.itemId);
                     Notification::Emit({
                         .itemIcon = GetTextureForItemId(getItemEntry.itemId),
                         .prefix = opener,
@@ -2038,19 +2050,10 @@ void ZeldaOnlineClient::SendPacket_PlayerUpdate() {
 }
 
 void ZeldaOnlineClient::DrawOverlay(GraphicsContext* gfxCtx) {
-    if (!isConnected)
-        DrawScreenText(gfxCtx, "Disconnected", 5, 5, { 255, 64, 64, 255 }, 0.5f);
-    else if (m_showConnectionStatusTimer > 0)
-        DrawScreenText(gfxCtx, "Connected", 5, 5, { 0, 255, 0, 255 }, 0.5f);
+    // The connection banner and the story prompts (time travel, warp vote, cutscene countdown) are drawn by
+    // CoopPolish (ZeldaOnlinePolish.cpp), which keeps drawing while disconnected.
     if (m_showConnectionStatusTimer > 0)
         --m_showConnectionStatusTimer;
-
-    if (m_storyHold)
-        DrawScreenText(gfxCtx, StoryHoldText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
-    else if (m_storyWarpHold || m_storyWarpVoting)
-        DrawScreenText(gfxCtx, StoryWarpText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
-    else if (m_storyCsHasPending && m_storyCsPromptFrames > 0)
-        DrawScreenText(gfxCtx, StoryCsPromptText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
 }
 
 void ZeldaOnlineClient::UpdateAppearance() {

@@ -155,8 +155,15 @@ namespace ZeldaOnline
 		// Unions a member's snapshot into the team save. Returns true when the team save changed.
 		bool MergeStory(const StoryProgress& incoming);
 
-		// A member switched a permanent dungeon switch or clear flag off again: the team save forgets it too.
+		// A member switched a permanent dungeon switch or clear flag off again: the team save forgets it too, and
+		// remembers that it was switched off, so a member who was not there cannot bring it back by union later.
 		bool StoryClearSceneBits(int sceneNum, uint32_t swchMask, uint32_t clearMask);
+
+		// A member switched one of those flags on again while playing: it is no longer remembered as switched off.
+		void StoryNoteSceneBitsSet(int sceneNum, uint32_t swchMask, uint32_t clearMask);
+
+		// Tells one member about every flag that was switched off while they were away (sent on catch up).
+		void SendStoryToggledOffTo(Player* player);
 
 		// A member added to a counter that is a sum over all members (Big Poe points). Returns true when it changed.
 		bool StoryAddCounter(uint8_t counterId, int amount);
@@ -236,6 +243,12 @@ namespace ZeldaOnline
 		uint8_t m_dungeonKeys[19]{};
 		StoryProgress m_story;
 		bool m_storySeeded = false;
+		// Dungeon switch and clear flags a member turned off again, per scene: { swch mask, clear mask }. Kept next
+		// to the team save (<stem>.off) so it survives a restart. A snapshot never brings these bits back; only a
+		// member switching the flag on while playing does (StoryNoteSceneBitsSet).
+		std::unordered_map<int, std::pair<uint32_t, uint32_t>> m_storyToggledOff;
+		void LoadStoryToggledOff(const std::string& stemPath);
+		void WriteStoryToggledOff(const std::string& stemPath);
 		std::string m_storyCode;
 		bool m_settingsAdjusted = false;
 		std::string m_saveKey;
