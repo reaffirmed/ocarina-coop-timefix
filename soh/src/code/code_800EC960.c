@@ -2,6 +2,7 @@
 #include <libultraship/bridge/audiobridge.h>
 #include "global.h"
 #include "soh/OTRGlobals.h"
+#include "soh/Network/ZeldaOnline/LiveMenus.h"
 #include "soh/Enhancements/audio/AudioEditor.h"
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
@@ -4921,11 +4922,16 @@ void func_800F64E0(u8 arg0) {
     if (arg0 != 0) {
         Audio_PlaySoundGeneral(NA_SE_SY_WIN_OPEN, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
                                &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
-        Audio_QueueCmdS32(0xF1000000, 0);
+        // SOH [ZeldaOnline] The world keeps sounding under a live pause menu
+        if (!gZeldaOnlineLivePause) {
+            Audio_QueueCmdS32(0xF1000000, 0);
+        }
     } else {
         Audio_PlaySoundGeneral(NA_SE_SY_WIN_CLOSE, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
                                &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
-        Audio_QueueCmdS32(0xF2000000, 0);
+        if (!gZeldaOnlineLivePause) {
+            Audio_QueueCmdS32(0xF2000000, 0);
+        }
     }
 }
 

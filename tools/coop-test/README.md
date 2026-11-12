@@ -62,6 +62,8 @@ frames):
 | `leave_party` | |
 | `wait_frames` | `n` |
 | `observe` | `name`, optional `flags` (`type`, `flag`) and `fields` (names as for `set_field`) to record |
+| `equip_c` | `slot` (default 7, the ocarina): puts that inventory slot's item on C-Left |
+| `wait_pause` | `state` (default 6, the open menu; 0 closed): waits for that pause menu state |
 | `set_flag`, `unset_flag` | `type` (`switch`, `clear`, `collect`, `treasure`, `event_chk_inf`, `inf_table`, `item_get_inf`, `quest_item`), `flag`; `unset_flag` supports `switch` and `clear` only (the toggle-off path) |
 | `reset_inventory` | empties items, ammo, quest items, dungeon items, upgrades; 3 hearts, 0 rupees (the debug save starts full) |
 | `give_item` | `item` (item id), optional `map_index`; calls `Item_Give`, so the OnItemReceive hooks fire like a pickup |
