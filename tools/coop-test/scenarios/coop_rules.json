@@ -188,7 +188,7 @@
     },
     {
      "op": "wait_frames",
-     "n": 240
+     "n": 420
     },
     {
      "op": "approach_peer",

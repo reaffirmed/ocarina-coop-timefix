@@ -86,7 +86,7 @@ void DrawScreenText(GraphicsContext* gfxCtx, const char* text, s16 x, s16 y, Col
 
     std::string processed = text;
     processed.erase(std::remove_if(processed.begin(), processed.end(),
-                                   [](const char& c) { return (uint8_t)c > 172 || (c < ' ' && c != '\0'); }),
+                                   [](const char& c) { return (uint8_t)c > 172 || (c < ' ' && c != '\0' && c != '\n'); }),
                     processed.end());
 
     if (processed.empty()) {
@@ -108,7 +108,8 @@ void DrawScreenText(GraphicsContext* gfxCtx, const char* text, s16 x, s16 y, Col
     s16 lineH = (s16)(16.0f * scale);
 
     s16 originX = (s16)(OTRGetRectDimensionFromLeftEdge((f32)(x)));
-    s16 penX = originX;
+    // the pen moves in fractions of a pixel: rounding every character down at small scales ate the spaces
+    f32 penX = originX;
     s16 penY = y;
 
     for (size_t i = 0; i < processed.length(); i++) {
@@ -124,10 +125,11 @@ void DrawScreenText(GraphicsContext* gfxCtx, const char* text, s16 x, s16 y, Col
                                G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK,
                                G_TX_NOLOD, G_TX_NOLOD);
 
-        gSPWideTextureRectangle(OVERLAY_DISP++, penX << 2, penY << 2, (penX + charW) << 2, (penY + charH) << 2,
+        const s32 left = (s32)(penX * 4.0f);
+        gSPWideTextureRectangle(OVERLAY_DISP++, left, penY << 2, left + (charW << 2), (penY + charH) << 2,
                                 G_TX_RENDERTILE, 0, 0, dsdx, dsdx);
 
-        penX += (s16)(Ship_GetCharFontWidth(processed[i]) * scale);
+        penX += Ship_GetCharFontWidth(processed[i]) * scale;
     }
 }
 
@@ -2062,6 +2064,8 @@ void ZeldaOnlineClient::DrawOverlay(GraphicsContext* gfxCtx) {
                        12, 170, { 255, 255, 255, 255 }, 0.45f);
     else if (m_storyCsHasPending && m_storyCsPromptFrames > 0)
         DrawScreenText(gfxCtx, StoryCsPromptText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
+
+    CoopDrawOverlay(gfxCtx);
 }
 
 void ZeldaOnlineClient::UpdateAppearance() {

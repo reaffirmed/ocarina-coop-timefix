@@ -262,6 +262,7 @@ class ZeldaOnlineClient : public ZNetworking {
     };
     bool m_coopJoinArmed = false;
     int m_coopJoinArmedFrames = 0;
+    uint32_t m_coopJoinParty = 0;     // the party the join summary was last armed for
     std::vector<std::string> m_coopJoinList;
     int m_coopJoinFrames = 0;
 
@@ -369,7 +370,7 @@ class ZeldaOnlineClient : public ZNetworking {
     bool CoopOtherMemberInScene() const;
     std::string CoopReadyText() const;
     CoopJoinSnapshot CoopCaptureJoin() const;
-    void CoopDiffJoin(const CoopJoinSnapshot& before);
+    bool CoopDiffJoin(const CoopJoinSnapshot& before); // true when something was listed
 
 
   public:

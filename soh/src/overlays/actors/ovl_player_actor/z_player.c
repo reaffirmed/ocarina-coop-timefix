@@ -3567,7 +3567,7 @@ void func_80836448(PlayState* play, Player* this, LinkAnimationHeader* anim) {
     }
 }
 
-// SOH [ZeldaOnline] co-op revive of a downed Link (see ZeldaOnline_EnterDowned): he gets up like after a fairy, with
+// SOH [ZeldaOnline] co-op revive of a downed Link (see ZeldaOnline_EnterDowned): he gets up as after a fairy, with
 // `health` (1/16 hearts) instead of full hearts.
 void Player_ZoRevive(PlayState* play, Player* this, s16 health) {
     if (!(this->stateFlags1 & PLAYER_STATE1_DEAD) || (play->gameOverCtx.state != GAMEOVER_INACTIVE)) {
@@ -3575,7 +3575,11 @@ void Player_ZoRevive(PlayState* play, Player* this, s16 health) {
     }
     sZoReviveHealth = CLAMP(health, 1, gSaveContext.healthCapacity);
     this->av1.actionVar1 = 0;
-    this->av2.actionVar2 = 1; // func_80843AE8 plays the rebirth animation next frame
+    // func_80843AE8 plays the rebirth animation when this runs out, as after a fairy
+    this->av2.actionVar2 = 60;
+    // the fairy revive's camera: it also ends the death camera (which never ends by itself), so the letterbox and
+    // the HUD come back when Link is up
+    OnePointCutscene_Init(play, 9908, 125, &this->actor, MAIN_CAM);
 }
 
 // SOH [ZeldaOnline] co-op: nobody revived the downed Link in time, the normal Game Over goes ahead.

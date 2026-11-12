@@ -80,6 +80,7 @@ frames):
 | `coop_song` | `song` (default Zelda's Lullaby): finishes a free play song, as putting the ocarina away does |
 | `coop_bottle` | `item` (default 24, a fairy; 21 red potion, 22 green, 23 blue, 26 milk), `name`: uses that bottle on C-Left; records `given`, `slot_after` |
 | `coop_place_marker`, `move_to_marker` | `dist`, `rupees` / `dist`: puts a death marker in front of Link, or Link that far from the marker |
+| `coop_open_menu` | opens the Co-op menu on the open pause screen, as L does |
 | `coop_beat_dark_link` | sets the marker's Dark Link to 0 health, as the last hit does |
 | `log`, `quit` | `msg` / `pass`, `error` |
 

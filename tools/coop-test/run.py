@@ -424,7 +424,12 @@ def run_clients(args, scenario_path, roles, folders, out, width, height, build_d
             opened.append(cl)
             cmd = [os.path.join(folders[r], GAME_EXE), "--coop-test", scenario_path, "--coop-test-role", r,
                    "--coop-test-out", out[r], "--coop-test-host", "127.0.0.1", "--coop-test-port", str(args.port)]
-            procs[r] = subprocess.Popen(cmd, cwd=folders[r], stdout=cl, stderr=subprocess.STDOUT)
+            env = None
+            if args.displays:
+                # one X display per client (Linux), so a screen recording of each one is not covered by the other
+                displays = args.displays.split(",")
+                env = dict(os.environ, DISPLAY=displays[i % len(displays)])
+            procs[r] = subprocess.Popen(cmd, cwd=folders[r], stdout=cl, stderr=subprocess.STDOUT, env=env)
             print("[run] started client %s (pid %d)" % (r, procs[r].pid))
             if i + 1 < len(roles):
                 time.sleep(args.stagger)
@@ -461,6 +466,7 @@ def main():
     ap.add_argument("--no-server", action="store_true", help="use an already running server on --port (no server checks)")
     ap.add_argument("--stagger", type=float, default=3.0, help="seconds between launching clients")
     ap.add_argument("--window", default="480x360", help="client window size WxH")
+    ap.add_argument("--displays", default="", help="Linux: X displays for the clients in role order, e.g. :95,:96")
     ap.add_argument("--stage", default=None, help="run only stages whose name contains this text (later stages may need earlier ones)")
     ap.add_argument("--keep", action="store_true", help="keep the instance folders after the run")
     args = ap.parse_args()

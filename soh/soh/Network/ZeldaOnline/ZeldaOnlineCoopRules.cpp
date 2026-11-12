@@ -1036,7 +1036,7 @@ ZeldaOnlineClient::CoopJoinSnapshot ZeldaOnlineClient::CoopCaptureJoin() const {
     return s;
 }
 
-void ZeldaOnlineClient::CoopDiffJoin(const CoopJoinSnapshot& before) {
+bool ZeldaOnlineClient::CoopDiffJoin(const CoopJoinSnapshot& before) {
     std::vector<std::string> got;
     for (int i = 0; i < 24; i++) {
         u8 item = gSaveContext.inventory.items[i];
@@ -1071,9 +1071,10 @@ void ZeldaOnlineClient::CoopDiffJoin(const CoopJoinSnapshot& before) {
         got.push_back(before.magicLevel == 0 ? "Magic meter" : "Bigger magic meter");
 
     if (got.empty())
-        return;
+        return false;
     m_coopJoinList = got;
     m_coopJoinFrames = kJoinSummaryFrames;
+    return true;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1117,6 +1118,14 @@ void ZeldaOnlineClient::CoopUpdate() {
         m_coopNoticeFrames--;
     if (m_coopJoinFrames > 0)
         m_coopJoinFrames--;
+    // joining a party also arms the join summary (the first team progress that adds something is listed)
+    if (m_partyID != m_coopJoinParty) {
+        m_coopJoinParty = m_partyID;
+        if (m_partyID != 0) {
+            m_coopJoinArmed = true;
+            m_coopJoinArmedFrames = 0;
+        }
+    }
 
     PlayState* play = gPlayState;
     if (!CoopRulesActive()) {
@@ -1242,9 +1251,9 @@ void ZeldaOnlineClient::CoopDrawOverlay(GraphicsContext* gfxCtx) {
             rows.back() = "and " + std::to_string(m_coopJoinList.size() - maxRows + 1) + " more";
         const s16 rowH = 9;
         const s16 h = (s16)(16 + rows.size() * rowH + 6);
-        const s16 x = 196, y = 40, w = 118;
+        const s16 x = 196, y = 64, w = 118; // below the C buttons, above the minimap
         FillRect(gfxCtx, x, y, w, h, panel);
-        DrawScreenText(gfxCtx, "From your party:", x + 5, y + 4, yellow, small);
+        DrawScreenText(gfxCtx, "You got from the team:", x + 5, y + 4, yellow, small);
         for (size_t i = 0; i < rows.size(); i++) {
             std::string row = rows[i];
             while (row.size() > 4 && TextWidth(row, small) > w - 10)
@@ -1257,8 +1266,9 @@ void ZeldaOnlineClient::CoopDrawOverlay(GraphicsContext* gfxCtx) {
     if (m_partyID != 0 && isConnected && PauseMenuIdle(play)) {
         if (!m_coopMenuOpen) {
             const char* hint = "L: Co-op menu";
-            FillRect(gfxCtx, 8, 206, (s16)(TextWidth(hint, 0.5f) + 10), 13, panel);
-            DrawScreenText(gfxCtx, hint, 13, 208, yellow, 0.5f);
+            // above the rupee counter
+            FillRect(gfxCtx, 8, 186, (s16)(TextWidth(hint, 0.5f) + 10), 13, panel);
+            DrawScreenText(gfxCtx, hint, 13, 188, yellow, 0.5f);
         } else {
             std::vector<CoopMenuRow> rows = BuildMenuRows();
             std::vector<std::string> status;

@@ -216,6 +216,12 @@ struct AutoTestAccess {
     static bool CoopMenuOpen() {
         return C()->m_coopMenuOpen;
     }
+    // Test only: opens the Co-op menu on the pause screen as L does (scripted input reaches the game after the
+    // menu has read the pad, real input before)
+    static void OpenCoopMenu() {
+        C()->m_coopMenuOpen = true;
+        C()->m_coopMenuCursor = 0;
+    }
     // Test only: a death marker `dist` units in front of Link, holding `rupees` (as a Game Over leaves one)
     static void PlaceMarker(float dist, int rupees) {
         Player* p = GET_PLAYER(gPlayState);
@@ -1598,6 +1604,11 @@ bool RunStep(const json& step) {
     }
     if (op == "move_to_marker") {
         if (!PlayReady() || !AutoTestAccess::MoveToMarker(step.value("dist", 0.0f))) return timedOut("move_to_marker: no marker");
+        return true;
+    }
+    if (op == "coop_open_menu") {
+        if (gPlayState == nullptr || gPlayState->pauseCtx.state != 6) return timedOut("coop_open_menu: not paused");
+        AutoTestAccess::OpenCoopMenu();
         return true;
     }
     if (op == "coop_beat_dark_link") {
