@@ -2051,10 +2051,6 @@ void ZeldaOnlineClient::DrawOverlay(GraphicsContext* gfxCtx) {
     if (m_showConnectionStatusTimer > 0)
         --m_showConnectionStatusTimer;
 
-    // this player's own voice is going out
-    if (isConnected && VoiceChat::Instance().Transmitting())
-        DrawScreenText(gfxCtx, "Talking", 140, 8, { 120, 255, 140, 255 }, 0.45f);
-
     if (m_storyHold)
         DrawScreenText(gfxCtx, StoryHoldText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
     else if (m_storyWarpHold || m_storyWarpVoting)
@@ -2153,6 +2149,11 @@ void ZeldaOnlineClient::RegisterNetworkingHook(bool enabled) {
     });
 
     COND_HOOK(OnDrawOverlay, enabled, [&](GraphicsContext* gfxCtx) { DrawOverlay(gfxCtx); });
+    // "Talking" while this player's own voice is going out (proximity voice chat)
+    COND_HOOK(OnDrawOverlay, enabled, [&](GraphicsContext* gfxCtx) {
+        if (isConnected && VoiceChat::Instance().Transmitting())
+            DrawScreenText(gfxCtx, "Talking", 140, 8, { 120, 255, 140, 255 }, 0.45f);
+    });
 }
 
 void ZeldaOnlineClient::RegisterHooks(bool enabled) {
