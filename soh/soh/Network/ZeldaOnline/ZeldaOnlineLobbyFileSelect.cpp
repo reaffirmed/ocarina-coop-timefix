@@ -886,7 +886,7 @@ extern "C" int CoopLobby_FileSelectCheckOpen(FileChooseContext* ctx) {
     return 1;
 }
 
-static void Rect(FileChooseContext* ctx, int x, int y, int w, int h, u8 r, u8 g, u8 b, u8 a);
+static void DrawLobbyRect(FileChooseContext* ctx, int x, int y, int w, int h, u8 r, u8 g, u8 b, u8 a);
 
 extern "C" void CoopLobby_FileSelectDrawPrompt(FileChooseContext* ctx) {
     CoopLobbyWindow* lobby = Lobby();
@@ -927,7 +927,7 @@ extern "C" void CoopLobby_FileSelectDrawPrompt(FileChooseContext* ctx) {
         lobby->soloBlockedFrames--;
         const std::string why = "Solo files stay offline. Press R, then Continue co-op file.";
         const int w = (int)TextWidth(why, 0.65f);
-        Rect(ctx, 160 - w / 2 - 4, 31, w + 8, 11, 0, 0, 0, 150); // readable on the bright sky too
+        DrawLobbyRect(ctx, 160 - w / 2 - 4, 31, w + 8, 11, 0, 0, 0, 150); // readable on the bright sky too
         DrawText(ctx, why, 160 - w / 2, 32, 255, 140, 140, 0.65f);
     }
     sScreen.alpha = saved;
@@ -1519,7 +1519,7 @@ static void DrawNamePage(FileChooseContext* ctx, bool modern) {
     const int top = modern ? 56 : 76;
     if (modern) {
         Panel(ctx, gx - 14, top - 6, gridW + 28, 150);
-        Rect(ctx, gx - 13, top - 5, gridW + 26, 15, 60, 100, 200, 90);
+        DrawLobbyRect(ctx, gx - 13, top - 5, gridW + 26, 15, 60, 100, 200, 90);
         TextAlpha(ctx, "The name your teammates see", gx - 7, top - 3, 255, 255, 255, 0.65f);
     }
 
@@ -1529,7 +1529,7 @@ static void DrawNamePage(FileChooseContext* ctx, bool modern) {
     if ((int)shown.size() < kNameMax)
         shown += blink ? "_" : " ";
     const float nameScale = 0.85f;
-    Rect(ctx, gx, top + (modern ? 14 : 0), gridW, 15, 0, 0, 0, 110);
+    DrawLobbyRect(ctx, gx, top + (modern ? 14 : 0), gridW, 15, 0, 0, 0, 110);
     TextAlpha(ctx, shown, 160 - (int)(TextWidth(sScreen.nameEdit, nameScale) / 2.0f), top + (modern ? 15 : 1), 255,
               255, 255, nameScale);
     char count[16];
@@ -1544,7 +1544,7 @@ static void DrawNamePage(FileChooseContext* ctx, bool modern) {
             const int x = gx + c * cell;
             const int y = gy + r * cell;
             if (selected)
-                Rect(ctx, x - 1, y - 1, cell, cell, 100, 150, 255, 160);
+                DrawLobbyRect(ctx, x - 1, y - 1, cell, cell, 100, 150, 255, 160);
             const std::string ch(1, kNameGrid[r][c]);
             TextAlpha(ctx, ch, x + (cell - (int)TextWidth(ch, 0.75f)) / 2 - 1, y, 255, 255, selected ? 80 : 255,
                       0.75f);
@@ -1557,7 +1557,7 @@ static void DrawNamePage(FileChooseContext* ctx, bool modern) {
     for (int i = 0; i < 3; i++) {
         const bool selected = sScreen.nameRow == kNameActionRow && sScreen.nameCol == i;
         const int x = gx + i * aw;
-        Rect(ctx, x + 2, ay - 1, aw - 4, 13, selected ? 100 : 60, selected ? 150 : 90, 255, selected ? 170 : 90);
+        DrawLobbyRect(ctx, x + 2, ay - 1, aw - 4, 13, selected ? 100 : 60, selected ? 150 : 90, 255, selected ? 170 : 90);
         TextAlpha(ctx, kActions[i], x + (aw - (int)TextWidth(kActions[i], 0.7f)) / 2, ay, 255, 255,
                   selected ? 80 : 255, 0.7f);
     }
