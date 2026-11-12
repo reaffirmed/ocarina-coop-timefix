@@ -1,4 +1,5 @@
 #include "ZeldaOnlineClient.hpp"
+#include "ZeldaOnlineVoice.hpp"
 #include "LiveMenus.h"
 #include <ship/window/Window.h>
 #include <ship/Context.h>
@@ -713,6 +714,7 @@ void ZeldaOnlineClient::OnConnected() {
 void ZeldaOnlineClient::OnDisconnected() {
     ZeldaOnlineRoomWindow::Instance->Reset();
     DbgPrintf("OnDisconnected()\n");
+    VoiceChat::Instance().OnDisconnected();
     m_didDisconnect = true;
     m_hasWorldTime = false;
     m_partyID = 0U;
@@ -1791,6 +1793,9 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
             }
         } break;
 
+        case SERVER_PACKET_VOICE:
+            VoiceChat::Instance().OnPacket(this, packet);
+            break;
 
         case SERVER_PACKET_CHAT_MESSAGE: {
             u16 fromNetworkID = (u16)(packet.Read<PackedUInt2>().value());
@@ -2095,6 +2100,8 @@ void ZeldaOnlineClient::UpdateAppearance() {
 
 void ZeldaOnlineClient::NetworkHook() 
 {
+    // voice first, so the frames it just read from the microphone go out with this poll
+    VoiceChat::Instance().Update(this);
     ZNetworking::Poll();
 
     if (--m_keepAliveTimer <= 0) {
@@ -2158,6 +2165,11 @@ void ZeldaOnlineClient::RegisterNetworkingHook(bool enabled) {
     });
 
     COND_HOOK(OnDrawOverlay, enabled, [&](GraphicsContext* gfxCtx) { DrawOverlay(gfxCtx); });
+    // "Talking" while this player's own voice is going out (proximity voice chat)
+    COND_HOOK(OnDrawOverlay, enabled, [&](GraphicsContext* gfxCtx) {
+        if (isConnected && VoiceChat::Instance().Transmitting())
+            DrawScreenText(gfxCtx, "Talking", 140, 8, { 120, 255, 140, 255 }, 0.45f);
+    });
 }
 
 void ZeldaOnlineClient::RegisterHooks(bool enabled) {

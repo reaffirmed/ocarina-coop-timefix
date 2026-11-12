@@ -100,6 +100,7 @@ struct AutoTestAccess;
 
 class ZeldaOnlineRoomWindow : public Ship::GuiWindow {
     friend struct AutoTestAccess;
+    friend class VoiceChat;
 
   private:
     static constexpr float LONG_PRESS_SECONDS = 0.5f;
