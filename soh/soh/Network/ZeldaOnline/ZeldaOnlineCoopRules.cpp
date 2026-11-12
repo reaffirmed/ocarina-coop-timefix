@@ -210,9 +210,13 @@ bool ZeldaOnlineClient::HitsTeammates() const {
     return StoryCoopActive() && m_partySettings.friendlyFire != FRIENDLY_FIRE_OFF;
 }
 
+// Co-op messages use the game's own notifications (bottom right by default, Settings > Notifications), like the other
+// online messages. The text is kept for the tests.
 void ZeldaOnlineClient::CoopShowNotice(const std::string& text, int seconds) {
     m_coopNotice = text;
     m_coopNoticeFrames = seconds * kFps;
+    // the last 3 seconds are the fade out
+    Notification::Emit({ .message = Wrap(text, 40), .remainingTime = (float)std::max(seconds, 3) + 3.0f });
 }
 
 // A party member in this scene who is up (not down) and could revive this player.
@@ -1069,6 +1073,23 @@ bool ZeldaOnlineClient::CoopDiffJoin(const CoopJoinSnapshot& before) {
         return false;
     m_coopJoinList = got;
     m_coopJoinFrames = kJoinSummaryFrames;
+
+    // a short notification: the items in at most three lines, then how many more
+    std::string list;
+    size_t shown = 0;
+    for (; shown < got.size(); shown++) {
+        std::string next = list.empty() ? got[shown] : list + ", " + got[shown];
+        const size_t left = got.size() - shown - 1;
+        std::string test = left > 0 ? next + ", and " + std::to_string(left) + " more" : next;
+        const std::string wrapped = Wrap(test, 40);
+        if (shown > 0 && std::count(wrapped.begin(), wrapped.end(), '\n') >= 3)
+            break;
+        list = next;
+    }
+    if (shown < got.size())
+        list += ", and " + std::to_string(got.size() - shown) + " more";
+    Notification::Emit({ .message = "You got from the team:\n" + Wrap(list, 40),
+                         .remainingTime = (float)(kJoinSummaryFrames / kFps) + 2.0f });
     return true;
 }
 
@@ -1225,36 +1246,7 @@ void ZeldaOnlineClient::CoopDrawOverlay(GraphicsContext* gfxCtx) {
         DrawScreenText(gfxCtx, text.c_str(), (s16)(160 - w / 2), 150, white, 0.7f);
     }
 
-    // a short message
-    if (m_coopNoticeFrames > 0 && !m_coopNotice.empty()) {
-        std::string text = Wrap(m_coopNotice);
-        u8 alpha = (u8)std::min(255, m_coopNoticeFrames * 25);
-        const s16 h = (s16)(LineCount(text) * lineH + 8);
-        const s16 y = (s16)(118 - h);
-        FillRect(gfxCtx, 8, y, 304, h, { 0, 0, 0, (u8)(alpha * 2 / 3) });
-        DrawScreenText(gfxCtx, text.c_str(), 14, (s16)(y + 4), { 255, 255, 255, alpha }, textScale);
-    }
-
-    // what a joining player received
-    if (m_coopJoinFrames > 0 && !m_coopJoinList.empty()) {
-        const size_t maxRows = 9;
-        std::vector<std::string> rows;
-        for (size_t i = 0; i < m_coopJoinList.size() && i < maxRows; i++)
-            rows.push_back(m_coopJoinList[i]);
-        if (m_coopJoinList.size() > maxRows)
-            rows.back() = "and " + std::to_string(m_coopJoinList.size() - maxRows + 1) + " more";
-        const s16 rowH = 9;
-        const s16 h = (s16)(16 + rows.size() * rowH + 6);
-        const s16 x = 196, y = 64, w = 118; // below the C buttons, above the minimap
-        FillRect(gfxCtx, x, y, w, h, panel);
-        DrawScreenText(gfxCtx, "You got from the team:", x + 5, y + 4, yellow, textScale);
-        for (size_t i = 0; i < rows.size(); i++) {
-            std::string row = rows[i];
-            while (row.size() > 4 && TextWidth(row, textScale) > w - 10)
-                row = row.substr(0, row.size() - 4) + "...";
-            DrawScreenText(gfxCtx, row.c_str(), x + 5, (s16)(y + 16 + i * rowH), white, textScale);
-        }
-    }
+    // the short messages and the join summary are the game's notifications (CoopShowNotice, CoopDiffJoin)
 
     // the Co-op menu and its hint on the pause screen
     if (m_partyID != 0 && isConnected && PauseMenuIdle(play)) {

@@ -1166,9 +1166,11 @@ void ZeldaOnlineClient::StoryUpdate() {
         const bool joinSummary = m_coopJoinArmed;
         const CoopJoinSnapshot beforeJoin = joinSummary ? CoopCaptureJoin() : CoopJoinSnapshot();
         const bool applied = StoryApply(team);
-        if (applied && joinSummary && CoopDiffJoin(beforeJoin))
+        const bool listed = applied && joinSummary && CoopDiffJoin(beforeJoin);
+        if (listed)
             m_coopJoinArmed = false;
-        if (applied && m_storyNotifyCooldown == 0) {
+        // the join summary already says it
+        if (applied && !listed && m_storyNotifyCooldown == 0) {
             Notification::Emit({ .message = "Party progress received" });
             m_storyNotifyCooldown = 5 * 20;
         }

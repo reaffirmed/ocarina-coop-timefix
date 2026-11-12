@@ -39,8 +39,9 @@ It needs `OOTSteamLink` and `OOTServer` from the download next to the game, and 
   joins), so nothing done online touches your three solo files. Choosing a solo file while the session runs plays the
   error sound and says so. **Copy a solo file** copies one of your solo files into the co-op file, once, one way: the
   solo file is never changed, and the co-op file it replaces is kept as `.bak`.
-- When you join a playthrough that is further along, a panel at the top right lists what the team's progress gave you
-  (items, equipment, upgrades, quest items, hearts and magic).
+- When you join a playthrough that is further along, a notification lists what the team's progress gave you
+  (items, equipment, upgrades, quest items, hearts and magic). It and the other co-op messages ("You revived ...",
+  "... gave you a red potion") use the game's own notifications, bottom right by default (Settings > Notifications).
 - **Choose a save file** (or B) still turns the window back to the files while the session keeps running, and R
   returns to the Co-op menu.
 - **Stop hosting** saves the team progress and stops the server. Closing the game does the same.
