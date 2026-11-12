@@ -35,6 +35,6 @@ jobs:
           out=$(git-clang-format --binary clang-format --diff HEAD^1 -- "${files[@]}")
           echo "$out"
           if grep -q '^diff --git' <<<"$out"; then
-            echo "::error::Changed lines are not clang-format 14 clean. Run ./scripts/format/run-clang-format.sh (see docs/FORMATTING.md) or apply the diff above."
+            echo "::error::Changed lines are not clang-format 14 clean. Apply the diff above, or run git clang-format against the base branch locally (see docs/FORMATTING.md)."
             exit 1
           fi
