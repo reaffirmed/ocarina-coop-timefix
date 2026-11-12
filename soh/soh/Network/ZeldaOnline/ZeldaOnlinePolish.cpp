@@ -422,19 +422,22 @@ bool CoopPolish::BuildPrompt(ZeldaOnlineClient* c, PromptText& p) {
         return true;
     }
     if (c->m_storyWarpHold || c->m_storyWarpVoting) {
-        p.title = "Continue the story";
+        // a ready check (a co-op rule asking everyone before a transition) reads differently from a story warp
+        const bool readyCheck =
+            (c->m_storyWarpHold && c->m_coopReadyHold) || (!c->m_storyWarpHold && c->m_coopReadyVote);
+        p.title = readyCheck ? "Ready check" : "Continue the story";
         p.count = std::to_string(c->m_storyWarpVoted) + "/" + std::to_string(c->m_storyWarpTotal) + " ready";
         std::string names = JoinNames(c->m_storyWarpMissing);
         if (c->m_storyWarpHold) {
             p.body = names.empty() ? "Waiting for the party to be ready." : "Waiting for " + names + " to be ready.";
             if (c->m_storyWarpHeard)
-                p.hints = HintPair(GLYPH_L, "Go now");
+                p.hints = HintPair(GLYPH_L, readyCheck ? "Go in now" : "Go now");
         } else if (c->m_storyWarpReady) {
             p.body = names.empty() ? "You are ready." : "You are ready. Waiting for " + names + ".";
             p.hints = HintPair(GLYPH_B, "Cancel");
         } else {
             std::string who = c->m_storyWarpStarter.empty() ? std::string("A party member") : c->m_storyWarpStarter;
-            p.body = who + " is ready to continue the story.";
+            p.body = who + (readyCheck ? " is ready to go on." : " is ready to continue the story.");
             p.hints = HintPair(GLYPH_L, "I'm ready");
         }
         return true;

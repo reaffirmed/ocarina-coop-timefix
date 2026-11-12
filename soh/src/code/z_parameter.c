@@ -6367,7 +6367,7 @@ void Interface_DrawTotalGameplayTimer(PlayState* play) {
     // Draw timer based on the Gameplay Stats total time.
     if (GameInteractor_Should(VB_SHOW_GAMEPLAY_TIMER,
                               CVarGetInteger(CVAR_GAMEPLAY_STATS("ShowIngameTimer"), 0) && gSaveContext.fileNum >= 0 &&
-                                  gSaveContext.fileNum <= 2,
+                                  gSaveContext.fileNum <= 3,
                               play)) {
         s32 X_Margins_Timer = 0;
         if (CVarGetInteger(CVAR_COSMETIC("HUD.IGT.UseMargins"), 0) != 0) {

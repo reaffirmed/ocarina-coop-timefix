@@ -1130,6 +1130,7 @@ void ZeldaOnlineClient::StoryUpdate() {
         StoryRestorePlayer();
     StoryMoveToEra();
     StoryWatchWarp();
+    CoopWatchReadyCheck();
     StoryWatchCutscenes();
     StoryWatchDialogue();
 
@@ -1162,9 +1163,16 @@ void ZeldaOnlineClient::StoryUpdate() {
         m_storyHasPending = false;
         m_storyPending = StoryProgress();
 
-        StoryProgress before = StoryCapture();
-        if (StoryApply(team)) {
-            // "Zelda found the Hookshot", with its icon (ZeldaOnlinePolish.cpp)
+        // the first snapshot after loading a save or joining that adds something: tell the player what they got
+        const bool joinSummary = m_coopJoinArmed;
+        const CoopJoinSnapshot beforeJoin = joinSummary ? CoopCaptureJoin() : CoopJoinSnapshot();
+        const StoryProgress before = StoryCapture();
+        const bool applied = StoryApply(team);
+        const bool listed = applied && joinSummary && CoopDiffJoin(beforeJoin);
+        if (listed)
+            m_coopJoinArmed = false;
+        // the join summary already says it; otherwise "Zelda found the Hookshot", with its icon (ZeldaOnlinePolish.cpp)
+        if (applied && !listed) {
             CoopPolish::AnnounceProgress(before, StoryCapture());
         }
     }

@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <ctime>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <libultraship/bridge/consolevariablebridge.h>
@@ -46,7 +47,7 @@ using namespace ZeldaOnline;
 
 namespace {
 
-enum class Page { Home, HostPick, Settings, Session };
+enum class Page { Home, HostPick, Settings, Session, CopyPick, CopyConfirm, Name };
 
 struct Row {
     std::string label;
@@ -73,10 +74,31 @@ enum RowId {
     ROW_SETTINGS,
     ROW_STOP,
     ROW_LAYOUT,
-    ROW_FRIEND = 2000, // + index
+    ROW_PLAY,
+    ROW_NAME,
+    ROW_COPY,
+    ROW_COPY_YES,
+    ROW_COPY_NO,
+    ROW_FRIENDLY_FIRE,
+    ROW_SONG_REVIVE,
+    ROW_BOTTLE_REVIVE,
+    ROW_DOWNED_TIME,
+    ROW_DEATH_PENALTY,
+    ROW_RUPEES_LOST,
+    ROW_DARK_LINK,
+    ROW_RESPAWN,
+    ROW_READY_CHECK,
+    ROW_FRIEND = 2000,    // + index
+    ROW_COPY_SLOT = 3000, // + solo file
 };
 
 constexpr float kTextScale = 0.8f;
+
+void AddCoopRuleRows(const PartySettings& s, std::vector<Row>& rows);
+} // namespace
+static std::string Fit(const std::string& text, float width, float scale);
+namespace {
+std::string SettingHelp(int id);
 
 struct CoopScreen {
     Page page = Page::Home;
@@ -86,6 +108,10 @@ struct CoopScreen {
     bool settingsLive = false; // opened while hosting: changes apply right away, no "Start hosting" row
     int16_t alpha = 0;
     int arrowAnim = 0;
+    int copySlot = -1;    // the solo file picked to copy into the co-op file
+    std::string notice;   // a line shown on the session page after a copy
+    std::string nameEdit; // the name being typed on the name page
+    int nameCol = 0, nameRow = 0;
 };
 CoopScreen sScreen;
 
@@ -93,8 +119,8 @@ constexpr const char* kModernCVar = "gZeldaOnline.Lobby.ModernLayout";
 
 int RowsOnScreen() {
     if (CVarGetInteger(kModernCVar, 0) == 0)
-        return 6;
-    return sScreen.page == Page::Settings ? 8 : 5;
+        return sScreen.page == Page::Settings ? 5 : 6; // the settings keep two lines for their help
+    return sScreen.page == Page::Settings ? 6 : 5;     // the settings panel ends above the button legend
 }
 
 CoopLobbyWindow* Lobby() {
@@ -202,6 +228,12 @@ std::string Title() {
             return "Host: choose a playthrough";
         case Page::Settings:
             return "Story settings";
+        case Page::Name:
+            return "Your name";
+        case Page::CopyPick:
+            return "Copy a solo file";
+        case Page::CopyConfirm:
+            return "Replace the co-op file?";
         case Page::Session:
             if (lobby->IsHosting())
                 return "Hosting";
@@ -224,7 +256,9 @@ void Info(std::vector<std::string>& above, std::string& below, std::vector<Row>&
             rows[sScreen.cursor].id < ROW_NEW) {
             const CoopPlaythrough& p = lobby->Playthroughs().hosted[rows[sScreen.cursor].id - ROW_PLAYTHROUGH];
             below = p.lastPlayed > 0 ? "Last played " + FormatDate(p.lastPlayed) : "Not played yet";
-            if (p.lastFile >= 0)
+            if (p.lastFile == SaveManager::CoopFileNum)
+                below += ", co-op file";
+            else if (p.lastFile >= 0)
                 below += ", File " + std::to_string(p.lastFile + 1);
         } else {
             below = "A new team save, with its own story settings.";
@@ -232,11 +266,20 @@ void Info(std::vector<std::string>& above, std::string& below, std::vector<Row>&
         return;
     }
     if (sScreen.page == Page::Settings) {
-        below = sScreen.settingsLive ? "Changes apply to everybody right away." : "Left / right changes a setting.";
+        below = SettingHelp(sScreen.cursor < (int)rows.size() ? rows[sScreen.cursor].id : -1);
+        return;
+    }
+    if (sScreen.page == Page::CopyPick) {
+        above.push_back("Copies a solo file into this playthrough's co-op file.");
+        below = "The solo file itself is not changed.";
+        return;
+    }
+    if (sScreen.page == Page::CopyConfirm) {
+        above.push_back("Replace your co-op file with File " + std::to_string(sScreen.copySlot + 1) + "?");
+        below = "The old co-op file is kept as a backup (.bak).";
         return;
     }
     // session
-    const int lastFile = lobby->LastFileForSession();
     switch (lobby->SessionStatus()) {
         case CoopLobbyWindow::Status::Starting:
             above.push_back(lobby->IsHosting() ? "Starting the server..." : "Signing in to Steam...");
@@ -265,8 +308,12 @@ void Info(std::vector<std::string>& above, std::string& below, std::vector<Row>&
                     list += (list.empty() ? "" : ", ") + n;
                 above.push_back("With: " + list);
             }
-            below = lastFile >= 0 ? "Last time you used File " + std::to_string(lastFile + 1) + "."
-                                  : "Any file works: the team progress is added.";
+            if (!sScreen.notice.empty())
+                below = sScreen.notice;
+            else if (lobby->CoopFileExists())
+                below = "Your co-op file for this playthrough. Solo files are never used online.";
+            else
+                below = "Starts a new file for this playthrough, or copy a solo file into it.";
             break;
         }
         case CoopLobbyWindow::Status::HostGone:
@@ -289,6 +336,7 @@ std::vector<Row> BuildRows() {
     switch (sScreen.page) {
         case Page::Home: {
             const bool steam = CoopLobbyWindow::SteamProblem().empty();
+            rows.push_back({ "Your name", Fit(lobby->PlayerName(), 70.0f, 0.7f), true, ROW_NAME });
             rows.push_back({ "Host a game", "", steam, ROW_HOST });
             rows.push_back({ "Join a friend", "", steam, ROW_JOIN });
             rows.push_back({ "Layout", CVarGetInteger(kModernCVar, 0) ? "Modern" : "Classic", true, ROW_LAYOUT });
@@ -314,6 +362,7 @@ std::vector<Row> BuildRows() {
             rows.push_back({ "Boss health", WeightText(s.healthMultiplier, s.bossHealthWeight), true, ROW_BOSS_HP });
             rows.push_back(
                 { "Enemy damage", WeightText(s.damageMultiplier, s.enemyDamageWeight), true, ROW_ENEMY_DMG });
+            AddCoopRuleRows(s, rows);
             if (sScreen.settingsLive)
                 rows.push_back({ "Done", "", true, ROW_DONE });
             else
@@ -333,17 +382,134 @@ std::vector<Row> BuildRows() {
             } else if (status == CoopLobbyWindow::Status::Stopping || status == CoopLobbyWindow::Status::Idle) {
                 // nothing to choose while it stops
             } else {
-                if (status == CoopLobbyWindow::Status::Ready)
-                    rows.push_back({ "Choose a save file", "", true, ROW_CHOOSE_FILE });
+                if (status == CoopLobbyWindow::Status::Ready) {
+                    const bool exists = lobby->CoopFileExists();
+                    rows.push_back({ exists ? "Continue co-op file" : "Start a new co-op file", "", true, ROW_PLAY });
+                    rows.push_back({ "Copy a solo file", "", true, ROW_COPY });
+                }
                 if (host && lobby->ActivePlaythrough() != nullptr)
                     rows.push_back({ "Story settings", "", true, ROW_SETTINGS });
                 rows.push_back({ host ? "Stop hosting" : "Leave", "", true, ROW_STOP });
             }
             break;
         }
+        case Page::CopyPick: {
+            for (int i = 0; i < SaveManager::MaxFiles; i++) {
+                const SaveFileMetaInfo& meta = SaveManager::Instance->fileMetaInfo[i];
+                std::string label = "File " + std::to_string(i + 1);
+                label += meta.valid ? "  (" + std::to_string(meta.healthCapacity / 16) + " hearts)" : "  (empty)";
+                rows.push_back({ label, "", meta.valid != 0, ROW_COPY_SLOT + i });
+            }
+            rows.push_back({ "Back", "", true, ROW_BACK });
+            break;
+        }
+        case Page::CopyConfirm:
+            rows.push_back({ "Yes, replace it", "", true, ROW_COPY_YES });
+            rows.push_back({ "No", "", true, ROW_COPY_NO });
+            break;
     }
     return rows;
 }
+
+// ---------------------------------------------------------------------------------------------- co-op rules
+
+const char* FriendlyFireText(int v) {
+    return v == FRIENDLY_FIRE_FULL ? "Full" : (v == FRIENDLY_FIRE_LIGHT ? "Light" : "Off");
+}
+
+const char* DeathPenaltyText(int v) {
+    return v == DEATH_PENALTY_DARK_LINK ? "+ Dark Link" : (v == DEATH_PENALTY_MARKER ? "Marker" : "Off");
+}
+
+const char* RupeesLostText(int v) {
+    static const char* kNames[] = { "None", "Quarter", "Half", "All" };
+    return kNames[std::clamp(v, 0, 3)];
+}
+
+// The co-op rules rows. A row that only matters when another one is on shows up under it.
+void AddCoopRuleRows(const PartySettings& s, std::vector<Row>& rows) {
+    rows.push_back({ "Friendly fire", FriendlyFireText(s.friendlyFire), true, ROW_FRIENDLY_FIRE });
+    rows.push_back({ "Revive with song", s.songRevive ? "On" : "Off", true, ROW_SONG_REVIVE });
+    rows.push_back({ "Revive with bottles", s.bottleRevive ? "On" : "Off", true, ROW_BOTTLE_REVIVE });
+    if (s.DownedEnabled())
+        rows.push_back({ "  Time to revive", s.downedSeconds >= 60 ? "60 s" : "30 s", true, ROW_DOWNED_TIME });
+    rows.push_back({ "Death penalty", DeathPenaltyText(s.deathPenalty), true, ROW_DEATH_PENALTY });
+    if (s.deathPenalty != DEATH_PENALTY_OFF)
+        rows.push_back({ "  Rupees lost", RupeesLostText(s.rupeesLost), true, ROW_RUPEES_LOST });
+    if (s.deathPenalty == DEATH_PENALTY_DARK_LINK)
+        rows.push_back({ "  Dark Link", s.darkLinkStrength ? "Water Temple" : "Weaker", true, ROW_DARK_LINK });
+    rows.push_back({ "Respawn wait", s.respawnCooldown >= 10 ? "10 s" : (s.respawnCooldown >= 5 ? "5 s" : "None"), true,
+                     ROW_RESPAWN });
+    rows.push_back({ "Ready check", s.readyCheck ? "On" : "Off", true, ROW_READY_CHECK });
+}
+
+// A short help line for the setting under the cursor.
+std::string SettingHelp(int id) {
+    switch (id) {
+        case ROW_SHARE:
+            return "Ammo, rupees and hearts picked up go to everybody.";
+        case ROW_PRIVATE:
+            return "The party gets its own copy of each dungeon.";
+        case ROW_EXTRA:
+            return "More enemies in dungeons. Turns on private dungeons.";
+        case ROW_ENEMY_HP:
+            return "Tougher enemies in dungeons. Turns on private dungeons.";
+        case ROW_BOSS_HP:
+            return "Tougher bosses. Turns on private dungeons.";
+        case ROW_ENEMY_DMG:
+            return "Enemies hit harder in dungeons. Turns on private dungeons.";
+        case ROW_FRIENDLY_FIRE:
+            return "Teammates' hits hurt. Light: half damage, never the last heart.";
+        case ROW_SONG_REVIVE:
+            return "Zelda's Lullaby revives a downed teammate: 3 hearts, 48 magic.";
+        case ROW_BOTTLE_REVIVE:
+            return "Fairies and potions revive teammates. Potions and milk heal.";
+        case ROW_DOWNED_TIME:
+            return "How long a downed player waits for help before the Game Over.";
+        case ROW_DEATH_PENALTY:
+            return "Marker: lost rupees wait where you fell. Dark Link guards them.";
+        case ROW_RUPEES_LOST:
+            return "How many of your rupees go into the marker when you die.";
+        case ROW_DARK_LINK:
+            return "Weaker: half his health. Water Temple: as strong as there.";
+        case ROW_RESPAWN:
+            return "Seconds before the Game Over menu shows after a death.";
+        case ROW_READY_CHECK:
+            return "Dungeon and boss doors wait until everybody there is ready.";
+        case ROW_START_HOSTING:
+            return "Everything here can be changed later while hosting.";
+        case ROW_DONE:
+            return "Changes apply to everybody right away.";
+        default:
+            return "Left / right changes a setting.";
+    }
+}
+
+// ---------------------------------------------------------------------------------------------- co-op save file
+
+void StartCoopFile(FileChooseContext* ctx) {
+    CoopLobbyWindow* lobby = Lobby();
+    if (lobby->CoopFilePath().empty()) {
+        PlaySfx(NA_SE_SY_FSEL_ERROR);
+        return;
+    }
+    const bool exists = lobby->PrepareCoopFile();
+    // a new file is named after the nickname, in the 8 letters a file name has
+    std::string name = CVarGetString("gZeldaOnline.Nickname", "Player");
+    std::string fileName;
+    for (char c : name) {
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == ' ' || c == '-' ||
+            c == '.')
+            fileName += c;
+        if (fileName.size() >= 8)
+            break;
+    }
+    if (fileName.empty())
+        fileName = "Link";
+    FileChoose_StartCoopFile(&ctx->state, exists ? 0 : 1, fileName.c_str());
+}
+
+void CopyPicked();
 
 void GoTo(Page page, int cursor = 0) {
     sScreen.page = page;
@@ -357,6 +523,16 @@ void ExitToMain(FileChooseContext* ctx) {
 
 void ChangeOption(int id, int dir) {
     CoopLobbyWindow* lobby = Lobby();
+    if (id == ROW_NAME) {
+        if (dir > 0) { // A (or right) opens the name page
+            sScreen.nameEdit = lobby->PlayerName();
+            if (sScreen.nameEdit == "Player")
+                sScreen.nameEdit.clear();
+            sScreen.nameCol = sScreen.nameRow = 0;
+            GoTo(Page::Name);
+        }
+        return;
+    }
     if (id == ROW_LAYOUT) {
         CVarSetInteger(kModernCVar, CVarGetInteger(kModernCVar, 0) ? 0 : 1);
         Ship::Context::GetRawInstance()->GetWindow()->GetGui()->SaveConsoleVariablesNextFrame();
@@ -400,6 +576,36 @@ void ChangeOption(int id, int dir) {
         case ROW_ENEMY_DMG:
             StepWeight(s.damageMultiplier, s.enemyDamageWeight, dir);
             break;
+        case ROW_FRIENDLY_FIRE:
+            s.friendlyFire = (s.friendlyFire + dir + 3) % 3;
+            break;
+        case ROW_SONG_REVIVE:
+            s.songRevive = !s.songRevive;
+            break;
+        case ROW_BOTTLE_REVIVE:
+            s.bottleRevive = !s.bottleRevive;
+            break;
+        case ROW_DOWNED_TIME:
+            s.downedSeconds = s.downedSeconds == 30 ? 60 : 30;
+            break;
+        case ROW_DEATH_PENALTY:
+            s.deathPenalty = (s.deathPenalty + dir + 3) % 3;
+            break;
+        case ROW_RUPEES_LOST:
+            s.rupeesLost = (s.rupeesLost + dir + 4) % 4;
+            break;
+        case ROW_DARK_LINK:
+            s.darkLinkStrength = s.darkLinkStrength == 0 ? 1 : 0;
+            break;
+        case ROW_RESPAWN: {
+            static const int kSteps[] = { 0, 5, 10 };
+            int i = s.respawnCooldown >= 10 ? 2 : (s.respawnCooldown >= 5 ? 1 : 0);
+            s.respawnCooldown = kSteps[(i + dir + 3) % 3];
+            break;
+        }
+        case ROW_READY_CHECK:
+            s.readyCheck = !s.readyCheck;
+            break;
         default:
             return;
     }
@@ -415,6 +621,14 @@ void Activate(FileChooseContext* ctx, const Row& row) {
         return;
     }
     PlaySfx(NA_SE_SY_FSEL_DECIDE_L);
+    if (row.id >= ROW_COPY_SLOT) {
+        sScreen.copySlot = row.id - ROW_COPY_SLOT;
+        if (lobby->CoopFileExists())
+            GoTo(Page::CopyConfirm, 1); // on "No": a stray A does not replace it
+        else
+            CopyPicked();
+        return;
+    }
     if (row.id >= ROW_FRIEND) {
         const auto& friends = lobby->HostingFriends();
         const int i = row.id - ROW_FRIEND;
@@ -425,7 +639,8 @@ void Activate(FileChooseContext* ctx, const Row& row) {
     if (row.id >= ROW_PLAYTHROUGH && row.id < ROW_NEW) {
         sScreen.settingsIndex = row.id - ROW_PLAYTHROUGH;
         sScreen.settingsLive = false;
-        GoTo(Page::Settings, 5); // on "Start hosting": A A hosts it as it was
+        GoTo(Page::Settings);
+        GoTo(Page::Settings, std::max(0, (int)BuildRows().size() - 1)); // on "Start hosting": A A hosts it as it was
         return;
     }
     switch (row.id) {
@@ -437,7 +652,9 @@ void Activate(FileChooseContext* ctx, const Row& row) {
             GoTo(Page::Session);
             break;
         case ROW_BACK:
-            if (sScreen.page == Page::Session) {
+            if (sScreen.page == Page::CopyPick) {
+                GoTo(Page::Session, 1);
+            } else if (sScreen.page == Page::Session) {
                 lobby->ClearFinished();
                 GoTo(Page::Home);
             } else {
@@ -458,6 +675,19 @@ void Activate(FileChooseContext* ctx, const Row& row) {
             break;
         case ROW_CHOOSE_FILE:
             ExitToMain(ctx);
+            break;
+        case ROW_PLAY:
+            StartCoopFile(ctx);
+            break;
+        case ROW_COPY:
+            sScreen.notice.clear();
+            GoTo(Page::CopyPick);
+            break;
+        case ROW_COPY_YES:
+            CopyPicked();
+            break;
+        case ROW_COPY_NO:
+            GoTo(Page::CopyPick, std::max(0, sScreen.copySlot));
             break;
         case ROW_SETTINGS: {
             CoopPlaythrough* p = lobby->ActivePlaythrough();
@@ -487,6 +717,15 @@ void Back(FileChooseContext* ctx) {
         case Page::HostPick:
             GoTo(Page::Home);
             break;
+        case Page::Name:
+            GoTo(Page::Home);
+            break;
+        case Page::CopyPick:
+            GoTo(Page::Session, 1);
+            break;
+        case Page::CopyConfirm:
+            GoTo(Page::CopyPick, std::max(0, sScreen.copySlot));
+            break;
         case Page::Settings:
             if (sScreen.settingsLive)
                 GoTo(Page::Session);
@@ -508,12 +747,136 @@ void Back(FileChooseContext* ctx) {
     }
 }
 
+// ---------------------------------------------------------------------------------------------- name page
+//
+// A letter grid like the game's own name entry: the stick or D-pad moves, A types, B deletes, Start or "OK" saves.
+
+const char* const kNameGrid[] = { "ABCDEFGHIJKLM", "NOPQRSTUVWXYZ", "abcdefghijklm", "nopqrstuvwxyz", "0123456789-_." };
+constexpr int kNameGridRows = 5;
+constexpr int kNameCols = 13;
+constexpr int kNameMax = 16;
+// the last row: Space, Delete, OK, each a third of the width
+constexpr int kNameActionRow = kNameGridRows;
+
+bool NameSave() {
+    std::string name = sScreen.nameEdit;
+    while (!name.empty() && name.back() == ' ')
+        name.pop_back();
+    while (!name.empty() && name.front() == ' ')
+        name.erase(name.begin());
+    if (name.empty()) {
+        PlaySfx(NA_SE_SY_FSEL_ERROR);
+        return false;
+    }
+    Lobby()->SetPlayerName(name);
+    PlaySfx(NA_SE_SY_FSEL_DECIDE_L);
+    GoTo(Page::Home);
+    return true;
+}
+
+void NameType(char c) {
+    if ((int)sScreen.nameEdit.size() >= kNameMax) {
+        PlaySfx(NA_SE_SY_FSEL_ERROR);
+        return;
+    }
+    sScreen.nameEdit += c;
+    PlaySfx(NA_SE_SY_FSEL_DECIDE_S);
+}
+
+void NameDelete() {
+    if (sScreen.nameEdit.empty()) {
+        PlaySfx(NA_SE_SY_FSEL_ERROR);
+        return;
+    }
+    sScreen.nameEdit.pop_back();
+    PlaySfx(NA_SE_SY_FSEL_CLOSE);
+}
+
+void UpdateNamePage(FileChooseContext* ctx) {
+    Input* input = &ctx->state.input[0];
+    const bool dpad = CVarGetInteger(CVAR_SETTING("DpadInText"), 0);
+    int dx = 0, dy = 0;
+    if (ctx->stickRelX > 30 || (dpad && CHECK_BTN_ANY(input->press.button, BTN_DRIGHT)))
+        dx = 1;
+    else if (ctx->stickRelX < -30 || (dpad && CHECK_BTN_ANY(input->press.button, BTN_DLEFT)))
+        dx = -1;
+    if (ctx->stickRelY > 30 || (dpad && CHECK_BTN_ANY(input->press.button, BTN_DUP)))
+        dy = -1;
+    else if (ctx->stickRelY < -30 || (dpad && CHECK_BTN_ANY(input->press.button, BTN_DDOWN)))
+        dy = 1;
+    if (dx != 0 || dy != 0) {
+        const int rowsTotal = kNameGridRows + 1;
+        if (dy != 0) {
+            // moving between the grid and the three wide buttons keeps the column roughly in place
+            const int oldRow = sScreen.nameRow;
+            sScreen.nameRow = (sScreen.nameRow + dy + rowsTotal) % rowsTotal;
+            if (sScreen.nameRow == kNameActionRow && oldRow != kNameActionRow)
+                sScreen.nameCol = std::min(2, sScreen.nameCol * 3 / kNameCols);
+            else if (oldRow == kNameActionRow && sScreen.nameRow != kNameActionRow)
+                sScreen.nameCol = sScreen.nameCol * kNameCols / 3 + 2;
+        }
+        const int cols = sScreen.nameRow == kNameActionRow ? 3 : kNameCols;
+        sScreen.nameCol = (sScreen.nameCol + dx + cols) % cols;
+        PlaySfx(NA_SE_SY_FSEL_CURSOR);
+    }
+
+    if (CHECK_BTN_ALL(input->press.button, BTN_START)) {
+        NameSave();
+    } else if (CHECK_BTN_ALL(input->press.button, BTN_B)) {
+        if (sScreen.nameEdit.empty()) {
+            PlaySfx(NA_SE_SY_FSEL_CLOSE);
+            GoTo(Page::Home); // nothing typed: back, the name stays as it was
+        } else {
+            NameDelete();
+        }
+    } else if (CHECK_BTN_ALL(input->press.button, BTN_A)) {
+        if (sScreen.nameRow == kNameActionRow) {
+            if (sScreen.nameCol == 0)
+                NameType(' ');
+            else if (sScreen.nameCol == 1)
+                NameDelete();
+            else
+                NameSave();
+        } else {
+            NameType(kNameGrid[sScreen.nameRow][sScreen.nameCol]);
+        }
+    }
+}
+
+void CopyPicked() {
+    CoopLobbyWindow* lobby = Lobby();
+    std::string error;
+    if (lobby->CopySoloFile(sScreen.copySlot, error)) {
+        sScreen.notice =
+            "File " + std::to_string(sScreen.copySlot + 1) + " copied. Choose Continue co-op file to play.";
+        GoTo(Page::Session, 0);
+    } else {
+        PlaySfx(NA_SE_SY_FSEL_ERROR);
+        sScreen.notice = error;
+        GoTo(Page::Session, 1);
+    }
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------------------------- entry points
 
+extern "C" int CoopLobby_BlockSoloFile(FileChooseContext* ctx) {
+    (void)ctx;
+    CoopLobbyWindow* lobby = Lobby();
+    if (lobby == nullptr || !lobby->SessionActive())
+        return 0;
+    lobby->soloBlockedFrames = 80;
+    return 1;
+}
+
 extern "C" int CoopLobby_FileSelectCheckOpen(FileChooseContext* ctx) {
     Input* input = &ctx->state.input[0];
+    if (Lobby() != nullptr && Lobby()->TakePlayRequest() &&
+        Lobby()->SessionStatus() == CoopLobbyWindow::Status::Ready) {
+        StartCoopFile(ctx);
+        return 1;
+    }
     if (Lobby() == nullptr || !CHECK_BTN_ALL(input->press.button, BTN_R))
         return 0;
     PlaySfx(NA_SE_SY_FSEL_DECIDE_L);
@@ -522,6 +885,8 @@ extern "C" int CoopLobby_FileSelectCheckOpen(FileChooseContext* ctx) {
     ctx->warningLabel = FS_WARNING_NONE;
     return 1;
 }
+
+static void DrawLobbyRect(FileChooseContext* ctx, int x, int y, int w, int h, u8 r, u8 g, u8 b, u8 a);
 
 extern "C" void CoopLobby_FileSelectDrawPrompt(FileChooseContext* ctx) {
     CoopLobbyWindow* lobby = Lobby();
@@ -558,6 +923,13 @@ extern "C" void CoopLobby_FileSelectDrawPrompt(FileChooseContext* ctx) {
     sScreen.alpha = std::min<int16_t>(ctx->windowAlpha, 255);
     // top right, above the window: the bottom has the A / B prompts
     DrawText(ctx, text, (int)(292.0f - TextWidth(text, 0.7f)), 20, r, g, b, 0.7f);
+    if (lobby->soloBlockedFrames > 0) {
+        lobby->soloBlockedFrames--;
+        const std::string why = "Solo files stay offline. Press R, then Continue co-op file.";
+        const int w = (int)TextWidth(why, 0.65f);
+        DrawLobbyRect(ctx, 160 - w / 2 - 4, 31, w + 8, 11, 0, 0, 0, 150); // readable on the bright sky too
+        DrawText(ctx, why, 160 - w / 2, 32, 255, 140, 140, 0.65f);
+    }
     sScreen.alpha = saved;
 }
 
@@ -593,6 +965,11 @@ extern "C" void FileChoose_UpdateCoopMenu(GameState* gameState) {
     sScreen.arrowAnim = (sScreen.arrowAnim + 1) % 30;
     if (lobby == nullptr) {
         ExitToMain(ctx);
+        return;
+    }
+
+    if (sScreen.page == Page::Name) {
+        UpdateNamePage(ctx);
         return;
     }
 
@@ -643,7 +1020,14 @@ static constexpr int kListX = 72;
 static constexpr int kListY = 82;
 static constexpr int kRowStep = 16;
 
+static void DrawNamePage(FileChooseContext* ctx, bool modern);
+
 static void DrawClassic(FileChooseContext* ctx) {
+    if (sScreen.page == Page::Name) {
+        DrawCentered(ctx, Title(), 58, 255, 255, 255, 0.9f);
+        DrawNamePage(ctx, false);
+        return;
+    }
     OPEN_DISPS(ctx->state.gfxCtx);
 
     std::vector<Row> rows = BuildRows();
@@ -733,7 +1117,9 @@ static void DrawClassic(FileChooseContext* ctx) {
     // the hint under the list
     if (!below.empty()) {
         const bool problem = sScreen.page == Page::Home && !CoopLobbyWindow::SteamProblem().empty();
-        int by = std::max(y + 4, kListY + RowsOnScreen() * kRowStep - 6);
+        // under the list, and under its "more" arrow when there is one
+        const bool more = last < (int)rows.size();
+        int by = std::max(y + (more ? 10 : 4), kListY + RowsOnScreen() * kRowStep - 6);
         for (const auto& line : Wrap(below, 176.0f, 0.7f)) {
             DrawText(ctx, line, kListX, by, problem ? 255 : 170, problem ? 120 : 170, problem ? 120 : 170, 0.7f);
             by += 12;
@@ -847,16 +1233,26 @@ static std::string Fit(const std::string& text, float width, float scale) {
 }
 
 static void Icon(FileChooseContext* ctx, const char* tex, int x, int y, int size, bool have) {
-    Sprite sprite = {};
-    std::snprintf(sprite.tex, sizeof(sprite.tex), "%s", tex);
-    sprite.width = 24;
-    sprite.height = 24;
-    sprite.im_fmt = G_IM_FMT_RGBA;
-    sprite.im_siz = G_IM_SIZ_32b;
+    // The display list keeps a pointer to the texture name until the frame is drawn, so the sprite must outlive
+    // this call (a sprite on the stack drew noise).
+    static std::unordered_map<std::string, Sprite> sSprites;
+    auto it = sSprites.find(tex);
+    if (it == sSprites.end()) {
+        Sprite fresh = {};
+        std::snprintf(fresh.tex, sizeof(fresh.tex), "%s", tex);
+        fresh.width = 24;
+        fresh.height = 24;
+        fresh.im_fmt = G_IM_FMT_RGBA;
+        fresh.im_siz = G_IM_SIZ_32b;
+        it = sSprites.emplace(tex, fresh).first;
+    }
+    Sprite& sprite = it->second;
+    Gfx_SetupDL_39Opa(ctx->state.gfxCtx);
     OPEN_DISPS(ctx->state.gfxCtx);
     gDPPipeSync(POLY_OPA_DISP++);
+    gDPSetTextureLUT(POLY_OPA_DISP++, G_TT_NONE);
     gDPSetRenderMode(POLY_OPA_DISP++, G_RM_XLU_SURF, G_RM_XLU_SURF2);
-    gDPSetCombineMode(POLY_OPA_DISP++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+    gDPSetCombineMode(POLY_OPA_DISP++, G_CC_MODULATERGBA_PRIM, G_CC_MODULATERGBA_PRIM);
     if (have)
         gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 255, 255, 255, A(255));
     else
@@ -868,7 +1264,7 @@ static void Icon(FileChooseContext* ctx, const char* tex, int x, int y, int size
 
 // The spiritual stones and medallions of a save file, and its hearts.
 static void ProgressIcons(FileChooseContext* ctx, int file, int x, int y) {
-    if (file < 0 || file > 2)
+    if (file < 0 || file > SaveManager::CoopFileNum)
         return;
     const SaveFileMetaInfo* meta = Save_GetSaveMetaInfo(file);
     if (meta == nullptr || !meta->valid)
@@ -885,7 +1281,7 @@ static void ProgressIcons(FileChooseContext* ctx, int file, int x, int y) {
 }
 
 static int HeartsOf(int file) {
-    if (file < 0 || file > 2)
+    if (file < 0 || file > SaveManager::CoopFileNum)
         return 0;
     const SaveFileMetaInfo* meta = Save_GetSaveMetaInfo(file);
     return (meta != nullptr && meta->valid) ? meta->healthCapacity / 16 : 0;
@@ -905,12 +1301,13 @@ static void DrawCard(FileChooseContext* ctx, const std::vector<Row>& rows, const
         file = p.lastFile;
     } else if (sScreen.page == Page::Session && lobby->IsHosting() && lobby->ActivePlaythrough() != nullptr) {
         title = lobby->ActivePlaythrough()->name;
-        line = hint;
-        file = lobby->LastFileForSession();
+        file = lobby->PrepareCoopFile() ? SaveManager::CoopFileNum : -1;
+        // one line: the file's progress icons take the second
+        line = file >= 0 ? "Your co-op save file:" : hint;
     } else if (sScreen.page == Page::Session && !lobby->ConnectedTo().empty()) {
         title = lobby->ConnectedTo() + "'s game";
-        line = hint;
-        file = lobby->LastFileForSession();
+        file = lobby->PrepareCoopFile() ? SaveManager::CoopFileNum : -1;
+        line = file >= 0 ? "Your co-op save file:" : hint;
     } else {
         title = sScreen.page == Page::HostPick  ? "New playthrough"
                 : sScreen.page == Page::Session ? "Join a friend"
@@ -925,7 +1322,7 @@ static void DrawCard(FileChooseContext* ctx, const std::vector<Row>& rows, const
     DrawLobbyRect(ctx, kLeftX + 1, kCardY + 1, kLeftW - 2, 15, 60, 100, 200, 90);
     TextAlpha(ctx, Fit(title, kLeftW - 12, 0.75f), kLeftX + 6, kCardY + 3, 255, 255, 255, 0.75f);
     int y = kCardY + 20;
-    const bool icons = file >= 0 && file <= 2 && Save_GetSaveMetaInfo(file)->valid;
+    const bool icons = file >= 0 && file <= SaveManager::CoopFileNum && Save_GetSaveMetaInfo(file)->valid;
     const int maxLines = icons ? 1 : 3;
     int n = 0;
     for (const auto& l : Wrap(line, kLeftW - 12, 0.62f)) {
@@ -1047,15 +1444,18 @@ static void DrawRowsLeft(FileChooseContext* ctx, const std::vector<Row>& rows) {
 static void DrawSettings(FileChooseContext* ctx, const std::vector<Row>& rows, const std::string& hint) {
     CoopLobbyWindow* lobby = Lobby();
     auto& list = lobby->Playthroughs().hosted;
-    const int h = 22 + (int)rows.size() * kWideStep + 22;
+    const int shown = std::min((int)rows.size(), RowsOnScreen());
+    const int h = 22 + shown * kWideStep + 30;
     Panel(ctx, kWideX, kTopY, kWideW, h);
     DrawLobbyRect(ctx, kWideX + 1, kTopY + 1, kWideW - 2, 15, 60, 100, 200, 90);
     std::string name = (sScreen.settingsIndex >= 0 && sScreen.settingsIndex < (int)list.size())
                            ? list[sScreen.settingsIndex].name
                            : "";
-    TextAlpha(ctx, Fit(name, kWideW - 12, 0.75f), kWideX + 6, kTopY + 3, 255, 255, 255, 0.75f);
+    TextAlpha(ctx, Fit(name, kWideW - 52, 0.75f), kWideX + 6, kTopY + 3, 255, 255, 255, 0.75f);
     int y = kTopY + 22;
-    for (int i = 0; i < (int)rows.size(); i++) {
+    const int first = sScreen.offset;
+    const int last = std::min((int)rows.size(), first + RowsOnScreen());
+    for (int i = first; i < last; i++) {
         const Row& row = rows[i];
         const bool selected = i == sScreen.cursor;
         if (selected)
@@ -1076,11 +1476,95 @@ static void DrawSettings(FileChooseContext* ctx, const std::vector<Row>& rows, c
         }
         y += kWideStep;
     }
-    y += 4;
+    // more rows above / below, and where the cursor is
+    if (first > 0 || last < (int)rows.size()) {
+        OPEN_DISPS(ctx->state.gfxCtx);
+        Gfx_SetupDL_39Opa(ctx->state.gfxCtx);
+        gDPSetCombineMode(POLY_OPA_DISP++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+        gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 255, 255, 255, sScreen.alpha);
+        const int ax = kWideX + kWideW / 2 - 4;
+        if (first > 0) {
+            const int ay = kTopY + 13 - sScreen.arrowAnim / 10;
+            gDPLoadTextureBlock(POLY_OPA_DISP++, gArrowUpTex, G_IM_FMT_IA, G_IM_SIZ_16b, 16, 16, 0,
+                                G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, G_TX_NOMASK,
+                                G_TX_NOLOD, G_TX_NOLOD);
+            gSPWideTextureRectangle(POLY_OPA_DISP++, ax << 2, ay << 2, (ax + 8) << 2, (ay + 8) << 2, G_TX_RENDERTILE, 0,
+                                    0, (1 << 11), (1 << 11));
+        }
+        if (last < (int)rows.size()) {
+            const int ay = y - 4 + sScreen.arrowAnim / 10;
+            gDPLoadTextureBlock(POLY_OPA_DISP++, gArrowDownTex, G_IM_FMT_IA, G_IM_SIZ_16b, 16, 16, 0,
+                                G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, G_TX_NOMASK,
+                                G_TX_NOLOD, G_TX_NOLOD);
+            gSPWideTextureRectangle(POLY_OPA_DISP++, ax << 2, ay << 2, (ax + 8) << 2, (ay + 8) << 2, G_TX_RENDERTILE, 0,
+                                    0, (1 << 11), (1 << 11));
+        }
+        CLOSE_DISPS(ctx->state.gfxCtx);
+        char pos[16];
+        std::snprintf(pos, sizeof(pos), "%d/%d", sScreen.cursor + 1, (int)rows.size());
+        TextAlpha(ctx, pos, kWideX + kWideW - 8 - (int)TextWidth(pos, 0.6f), kTopY + 4, 170, 190, 230, 0.6f);
+    }
+    y += 6;
     for (const auto& l : Wrap(hint, kWideW - 12, 0.62f)) {
         TextAlpha(ctx, l, kWideX + 6, y, 170, 180, 200, 0.62f);
         y += 11;
     }
+}
+
+// The name page: the name with a cursor, the letter grid, and Space / Delete / OK.
+static void DrawNamePage(FileChooseContext* ctx, bool modern) {
+    constexpr int cell = 12;
+    constexpr int gridW = kNameCols * cell;
+    const int gx = 160 - gridW / 2;
+    const int top = modern ? 56 : 76;
+    if (modern) {
+        Panel(ctx, gx - 14, top - 6, gridW + 28, 150);
+        DrawLobbyRect(ctx, gx - 13, top - 5, gridW + 26, 15, 60, 100, 200, 90);
+        TextAlpha(ctx, "The name your teammates see", gx - 7, top - 3, 255, 255, 255, 0.65f);
+    }
+
+    // the name being typed
+    std::string shown = sScreen.nameEdit;
+    const bool blink = (sScreen.arrowAnim / 8) % 2 == 0;
+    if ((int)shown.size() < kNameMax)
+        shown += blink ? "_" : " ";
+    const float nameScale = 0.85f;
+    DrawLobbyRect(ctx, gx, top + (modern ? 14 : 0), gridW, 15, 0, 0, 0, 110);
+    TextAlpha(ctx, shown, 160 - (int)(TextWidth(sScreen.nameEdit, nameScale) / 2.0f), top + (modern ? 15 : 1), 255, 255,
+              255, nameScale);
+    char count[16];
+    std::snprintf(count, sizeof(count), "%d/%d", (int)sScreen.nameEdit.size(), kNameMax);
+    TextAlpha(ctx, count, gx + gridW - (int)TextWidth(count, 0.55f) - 2, top + (modern ? 18 : 4), 150, 160, 190, 0.55f);
+
+    // the grid
+    const int gy = top + (modern ? 36 : 22);
+    for (int r = 0; r < kNameGridRows; r++) {
+        for (int c = 0; c < kNameCols; c++) {
+            const bool selected = r == sScreen.nameRow && c == sScreen.nameCol;
+            const int x = gx + c * cell;
+            const int y = gy + r * cell;
+            if (selected)
+                DrawLobbyRect(ctx, x - 1, y - 1, cell, cell, 100, 150, 255, 160);
+            const std::string ch(1, kNameGrid[r][c]);
+            TextAlpha(ctx, ch, x + (cell - (int)TextWidth(ch, 0.75f)) / 2 - 1, y, 255, 255, selected ? 80 : 255, 0.75f);
+        }
+    }
+    // Space / Delete / OK
+    static const char* const kActions[] = { "Space", "Delete", "OK" };
+    const int ay = gy + kNameGridRows * cell + 4;
+    const int aw = gridW / 3;
+    for (int i = 0; i < 3; i++) {
+        const bool selected = sScreen.nameRow == kNameActionRow && sScreen.nameCol == i;
+        const int x = gx + i * aw;
+        DrawLobbyRect(ctx, x + 2, ay - 1, aw - 4, 13, selected ? 100 : 60, selected ? 150 : 90, 255,
+                      selected ? 170 : 90);
+        TextAlpha(ctx, kActions[i], x + (aw - (int)TextWidth(kActions[i], 0.7f)) / 2, ay, 255, 255, selected ? 80 : 255,
+                  0.7f);
+    }
+    const std::string help = "A: type   B: delete   START: save";
+    TextAlpha(ctx, help, 160 - (int)(TextWidth(help, 0.6f) / 2.0f), ay + 18, 170, 180, 200, 0.6f);
+    const std::string help2 = "Shown over Link and in the party list.";
+    TextAlpha(ctx, help2, 160 - (int)(TextWidth(help2, 0.6f) / 2.0f), ay + 29, 170, 180, 200, 0.6f);
 }
 
 static void DrawModern(FileChooseContext* ctx) {
@@ -1110,6 +1594,10 @@ static void DrawModern(FileChooseContext* ctx) {
 
     if (sScreen.page == Page::Settings) {
         DrawSettings(ctx, rows, below);
+        return;
+    }
+    if (sScreen.page == Page::Name) {
+        DrawNamePage(ctx, true);
         return;
     }
     DrawRowsLeft(ctx, rows);

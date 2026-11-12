@@ -25,7 +25,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WINDOWS = os.name == "nt"
-# the game executable in the build folder: soh.exe on Windows, soh.elf on Linux (run it under Xvfb when headless)
+# the game executable: soh.exe on Windows, soh.elf on Linux (run Linux clients under a display, e.g. xvfb-run -a)
 GAME_EXE = "soh.exe" if WINDOWS else "soh.elf"
 
 
@@ -57,7 +57,7 @@ def populate(build_dir, folder, extra_o2r=None):
     for name in os.listdir(build_dir):
         src = os.path.join(build_dir, name)
         low = name.lower()
-        if os.path.isfile(src) and (low.endswith((".exe", ".dll", ".o2r")) or name == GAME_EXE):
+        if os.path.isfile(src) and (low.endswith((".exe", ".dll", ".o2r", ".so")) or name == GAME_EXE):
             if low in ("zapd.exe",):
                 continue
             link_or_copy(src, os.path.join(folder, name))
@@ -68,11 +68,9 @@ def populate(build_dir, folder, extra_o2r=None):
             link_or_copy(p, os.path.join(folder, os.path.basename(p)))
 
 
-def write_client_config(folder, width, height, index=0):
-    """Small windowed client, DX11 backend on Windows. Everything else is set by the in-game test mode.
-    The clients are placed side by side so both can be watched (and captured) at once."""
-    window = {"Width": width, "Height": height, "Fullscreen": {"Enabled": False},
-              "PositionX": 20 + index * (width + 20), "PositionY": 20}
+def write_client_config(folder, width, height):
+    """Small windowed client, DX11 backend. Everything else is set by the in-game test mode."""
+    window = {"Width": width, "Height": height, "Fullscreen": {"Enabled": False}}
     if WINDOWS:
         window["Backend"] = {"Id": 0, "Name": "DirectX 11"}
     cfg = {
@@ -98,10 +96,7 @@ def kill_tree(proc):
         subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)  # started in its own session
-        except OSError:
-            proc.kill()
+        proc.kill()
     try:
         proc.wait(timeout=10)
     except subprocess.TimeoutExpired:
@@ -123,7 +118,7 @@ def ensure_extracted(args, shared):
     log = open(os.path.join(args.work, "extract.log"), "w")
     p = subprocess.Popen([os.path.join(shared, GAME_EXE), "--coop-test-extract-only",
                           "--coop-test-rom", os.path.abspath(args.rom)],
-                         cwd=shared, stdout=log, stderr=subprocess.STDOUT, start_new_session=not WINDOWS)
+                         cwd=shared, stdout=log, stderr=subprocess.STDOUT)
     try:
         p.wait(timeout=args.extract_timeout)
     except subprocess.TimeoutExpired:
@@ -235,9 +230,12 @@ def check(scenario, logs):
                 ok = False
             elif "delta" in a:
                 ok = (vb - va) == a["delta"]
+            elif "min_delta" in a:
+                ok = (vb - va) >= a["min_delta"]
             else:
                 ok = compare(a.get("op", "eq"), vb, va)
-            want = ("b - a == %r" % a["delta"]) if "delta" in a else ("b %s a" % a.get("op", "eq"))
+            want = ("b - a == %r" % a["delta"]) if "delta" in a else (
+                ("b - a >= %r" % a["min_delta"]) if "min_delta" in a else ("b %s a" % a.get("op", "eq")))
             results.append((ok, "%s: a=%r b=%r, want %s" % (label, va, vb, want)))
         elif kind == "close":
             # two values (possibly of different roles) differ by at most `max_diff` (`wrap` makes it a circular
@@ -412,7 +410,7 @@ def run_clients(args, scenario_path, roles, folders, out, width, height, build_d
             except OSError:
                 pass
         populate(build_dir, folders[r], extra)
-        write_client_config(folders[r], width, height, roles.index(r))
+        write_client_config(folders[r], width, height)
     for p in out.values():
         try:
             os.remove(p)
@@ -426,8 +424,12 @@ def run_clients(args, scenario_path, roles, folders, out, width, height, build_d
             opened.append(cl)
             cmd = [os.path.join(folders[r], GAME_EXE), "--coop-test", scenario_path, "--coop-test-role", r,
                    "--coop-test-out", out[r], "--coop-test-host", "127.0.0.1", "--coop-test-port", str(args.port)]
-            procs[r] = subprocess.Popen(cmd, cwd=folders[r], stdout=cl, stderr=subprocess.STDOUT,
-                                        start_new_session=not WINDOWS)
+            env = None
+            if args.displays:
+                # one X display per client (Linux), so a screen recording of each one is not covered by the other
+                displays = args.displays.split(",")
+                env = dict(os.environ, DISPLAY=displays[i % len(displays)])
+            procs[r] = subprocess.Popen(cmd, cwd=folders[r], stdout=cl, stderr=subprocess.STDOUT, env=env)
             print("[run] started client %s (pid %d)" % (r, procs[r].pid))
             if i + 1 < len(roles):
                 time.sleep(args.stagger)
@@ -464,6 +466,7 @@ def main():
     ap.add_argument("--no-server", action="store_true", help="use an already running server on --port (no server checks)")
     ap.add_argument("--stagger", type=float, default=3.0, help="seconds between launching clients")
     ap.add_argument("--window", default="480x360", help="client window size WxH")
+    ap.add_argument("--displays", default="", help="Linux: X displays for the clients in role order, e.g. :95,:96")
     ap.add_argument("--stage", default=None, help="run only stages whose name contains this text (later stages may need earlier ones)")
     ap.add_argument("--keep", action="store_true", help="keep the instance folders after the run")
     args = ap.parse_args()
