@@ -35,6 +35,10 @@ namespace ZeldaOnline
     void ZeldaOnlineClient::OnSceneTrigger(AbstractActorController* sendingPlayer, const std::string& name, ByteStream& data)
     {
         static Vec3f zeroVec = { 0.0f, 0.0f, 0.0f };
+        if (name.compare(0, 3, "co_") == 0) {
+            CoopOnSceneTrigger(sendingPlayer, name, data);
+            return;
+        }
         if (name == "spawn" || name == "spawnC")
         {
             auto actorID = (int16_t)data.Read<PackedUInt2>().value();
@@ -127,7 +131,7 @@ namespace ZeldaOnline
             f32 velY = data.Read<PackedFloat4>().value();
             bool pvp = data.Read<PackedUInt1>().value();
 
-            bool pvpActive = pvp && CVarGetInteger("gZeldaOnline.Pvp", 0) != 0;
+            bool pvpActive = pvp && HitsTeammates();
 
             if (params == ARROW_NUT) {
                 Player* localPlayer = GET_PLAYER(gPlayState);

@@ -9,6 +9,7 @@
 #include <ship/window/gui/GuiWindow.h>
 #include "PartySettings.hpp"
 #include <cstdint>
+#include <filesystem>
 #include <ctime>
 #include <string>
 #include <vector>
@@ -142,6 +143,30 @@ class CoopLobbyWindow : public Ship::GuiWindow {
     void ClearFinished(); // after a failure or a stop: back to idle
     void OnStorySettingsChanged(CoopPlaythrough& p);
 
+    // ---- co-op save files: kept in Save/coop, apart from the three solo files, which are never used online
+    // The co-op file of this session (empty until the party is ready). One per hosted playthrough, and one per
+    // playthrough joined (by its team code).
+    std::filesystem::path CoopFilePath();
+    // Points the save manager's co-op slot at this session's file and reads its card. True when the file exists.
+    bool PrepareCoopFile();
+    bool CoopFileExists();
+    // One way copy of solo file `slot` (0 to 2) into the co-op file. An existing co-op file is kept as a .bak.
+    bool CopySoloFile(int slot, std::string& error);
+    // "Play" in the overlay window: the file select starts the co-op file on its next frame.
+    void RequestPlay() {
+        m_playRequested = true;
+    }
+    bool TakePlayRequest() {
+        bool r = m_playRequested;
+        m_playRequested = false;
+        return r;
+    }
+    // The player's name (gZeldaOnline.Nickname, the same one the online window uses): name tags and the party list.
+    std::string PlayerName() const;
+    void SetPlayerName(const std::string& name);
+    // A solo file was picked while playing online: the file select says why that does not work.
+    int soloBlockedFrames = 0;
+
   private:
     enum class Page { Home, HostPick, Session };
     Page m_page = Page::Home;
@@ -164,6 +189,7 @@ class CoopLobbyWindow : public Ship::GuiWindow {
     double m_lastPoll = 0.0;
     int m_lastRecordedFile = -2;
     std::string m_message;
+    bool m_playRequested = false;
 
     void EnsureListLoaded();
     void DrawHome();

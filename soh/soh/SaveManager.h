@@ -43,6 +43,9 @@ typedef enum {
     /* 2 */ NAME_LANGUAGE_NTSC_ENG,
 } FilenameLanguage;
 
+// The co-op file's fileNum (SaveManager::CoopFileNum), for C code
+#define SAVEMANAGER_COOP_FILE 3
+
 #ifdef __cplusplus
 
 #include <map>
@@ -150,9 +153,25 @@ class SaveManager {
     void LoadStruct(const std::string& name, LoadStructFunc func);
 
     static const int MaxFiles = 3;
-    std::array<SaveFileMetaInfo, MaxFiles> fileMetaInfo;
+    // A co-op playthrough's own save file (Story Co-op lobby). It is never one of the three slots: fileNum 3 always
+    // reads and writes the file set with SetCoopFile, so nothing done online can touch a solo file.
+    static const int CoopFileNum = 3;
+    std::array<SaveFileMetaInfo, MaxFiles + 1> fileMetaInfo; // [CoopFileNum]: the co-op file last loaded or checked
+
+    // Points CoopFileNum at `path` (empty: none). Waits for saves that are still being written first.
+    void SetCoopFile(const std::filesystem::path& path);
+    const std::filesystem::path& CoopFile() const {
+        return coopFilePath;
+    }
+    // Reads the metadata of the co-op file into fileMetaInfo[CoopFileNum]; false (and marked invalid) if none.
+    bool LoadCoopMeta();
+    // The file a slot reads and writes (0 to 2 the solo files, CoopFileNum the co-op file).
+    std::filesystem::path SlotFileName(int fileNum) {
+        return GetFileName(fileNum);
+    }
 
   private:
+    std::filesystem::path coopFilePath;
     std::filesystem::path GetFileName(int fileNum);
     std::filesystem::path GetFileTempName(int fileNum);
     nlohmann::json saveBlock;

@@ -210,6 +210,8 @@ void DrawInfoTab() {
         ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Game Inactive");
     } else if (gSaveContext.fileNum >= 0 && gSaveContext.fileNum <= 2) {
         Combobox("File Number", &gSaveContext.fileNum, fileNumMap, comboboxOptionsBase.Tooltip("Current File Number"));
+    } else if (gSaveContext.fileNum == 3) {
+        ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "Co-op File");
     } else {
         ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Debug File");
     }

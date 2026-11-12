@@ -1,0 +1,385 @@
+{
+ "name": "coop_darklink",
+ "server": {
+  "host": "127.0.0.1",
+  "port": 21650
+ },
+ "boot": {
+  "entrance": 238,
+  "age": "adult"
+ },
+ "roles": {
+  "A": {
+   "name": "TestA",
+   "steps": [
+    {
+     "op": "wait_play",
+     "timeout_frames": 1800
+    },
+    {
+     "op": "connect"
+    },
+    {
+     "op": "wait_until",
+     "cond": "connected",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "wait_until",
+     "cond": "net_id",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "warp",
+     "entrance": 238,
+     "scene": 85,
+     "timeout_frames": 1800
+    },
+    {
+     "op": "wait_until",
+     "cond": "other_players",
+     "n": 1,
+     "timeout_frames": 3600
+    },
+    {
+     "op": "create_party",
+     "story_coop": true,
+     "story_code": "coop-darklink",
+     "coop_rules": {
+      "deathPenalty": 2,
+      "rupeesLost": 2,
+      "darkLinkStrength": 0
+     }
+    },
+    {
+     "op": "wait_until",
+     "cond": "has_party",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "wait_until",
+     "cond": "story_active",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "invite"
+    },
+    {
+     "op": "wait_until",
+     "cond": "party_size",
+     "n": 2,
+     "timeout_frames": 3600
+    },
+    {
+     "op": "wait_until",
+     "cond": "peers_in_scene",
+     "n": 1,
+     "timeout_frames": 3600
+    },
+    {
+     "op": "wait_until",
+     "cond": "peer_puppets",
+     "n": 1,
+     "timeout_frames": 1800
+    },
+    {
+     "op": "wait_frames",
+     "n": 60
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "coop_marker",
+     "value": 0,
+     "cmp": "eq",
+     "timeout_frames": 10
+    },
+    {
+     "op": "wait_frames",
+     "n": 1200
+    },
+    {
+     "op": "set_party_settings",
+     "coop_rules": {
+      "deathPenalty": 1,
+      "rupeesLost": 2
+     }
+    },
+    {
+     "op": "wait_frames",
+     "n": 900
+    },
+    {
+     "op": "quit",
+     "pass": true
+    }
+   ]
+  },
+  "B": {
+   "name": "TestB",
+   "steps": [
+    {
+     "op": "wait_play",
+     "timeout_frames": 1800
+    },
+    {
+     "op": "connect"
+    },
+    {
+     "op": "wait_until",
+     "cond": "connected",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "wait_until",
+     "cond": "net_id",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "warp",
+     "entrance": 238,
+     "scene": 85,
+     "timeout_frames": 1800
+    },
+    {
+     "op": "wait_until",
+     "cond": "invite_pending",
+     "timeout_frames": 7200
+    },
+    {
+     "op": "accept_invite"
+    },
+    {
+     "op": "wait_until",
+     "cond": "has_party",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "wait_until",
+     "cond": "story_active",
+     "timeout_frames": 1200
+    },
+    {
+     "op": "wait_until",
+     "cond": "party_size",
+     "n": 2,
+     "timeout_frames": 3600
+    },
+    {
+     "op": "wait_until",
+     "cond": "peers_in_scene",
+     "n": 1,
+     "timeout_frames": 3600
+    },
+    {
+     "op": "wait_until",
+     "cond": "peer_puppets",
+     "n": 1,
+     "timeout_frames": 1800
+    },
+    {
+     "op": "wait_frames",
+     "n": 60
+    },
+    {
+     "op": "set_rupees",
+     "n": 10
+    },
+    {
+     "op": "set_health",
+     "health": 200
+    },
+    {
+     "op": "coop_place_marker",
+     "dist": 200,
+     "rupees": 50
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "coop_dark_link",
+     "value": 1,
+     "cmp": "eq",
+     "timeout_frames": 200
+    },
+    {
+     "op": "wait_frames",
+     "n": 10
+    },
+    {
+     "op": "observe",
+     "name": "dl_spawned"
+    },
+    {
+     "op": "move_to_marker",
+     "dist": 100
+    },
+    {
+     "op": "wait_frames",
+     "n": 300
+    },
+    {
+     "op": "observe",
+     "name": "dl_fight"
+    },
+    {
+     "op": "coop_beat_dark_link"
+    },
+    {
+     "op": "wait_frames",
+     "n": 60
+    },
+    {
+     "op": "observe",
+     "name": "dl_beaten"
+    },
+    {
+     "op": "wait_until",
+     "cond": "field",
+     "field": "coop_death_penalty",
+     "value": 1,
+     "cmp": "eq",
+     "timeout_frames": 2400
+    },
+    {
+     "op": "wait_frames",
+     "n": 20
+    },
+    {
+     "op": "coop_place_marker",
+     "dist": 150,
+     "rupees": 30
+    },
+    {
+     "op": "wait_frames",
+     "n": 60
+    },
+    {
+     "op": "observe",
+     "name": "marker_placed"
+    },
+    {
+     "op": "move_to_marker",
+     "dist": 0
+    },
+    {
+     "op": "wait_frames",
+     "n": 60
+    },
+    {
+     "op": "wait_frames",
+     "n": 20
+    },
+    {
+     "op": "observe",
+     "name": "marker_walked"
+    },
+    {
+     "op": "quit",
+     "pass": true
+    }
+   ]
+  }
+ },
+ "assertions": [
+  {
+   "type": "each",
+   "obs": "dl_spawned",
+   "path": "coop.dark_link",
+   "op": "eq",
+   "value": true,
+   "roles": [
+    "B"
+   ],
+   "label": "Dark Link spawns at the marker of an adult"
+  },
+  {
+   "type": "each",
+   "obs": "dl_spawned",
+   "path": "coop.notice",
+   "op": "eq",
+   "value": "Dark Link guards your rupees. Beat him to get them back.",
+   "roles": [
+    "B"
+   ],
+   "label": "the player is told why Dark Link is there"
+  },
+  {
+   "type": "each",
+   "obs": "dl_fight",
+   "path": "coop.dark_link",
+   "op": "eq",
+   "value": true,
+   "roles": [
+    "B"
+   ],
+   "label": "Dark Link is still there a few seconds later"
+  },
+  {
+   "type": "each",
+   "obs": "dl_fight",
+   "path": "health",
+   "op": "lt",
+   "value": 200,
+   "roles": [
+    "B"
+   ],
+   "label": "Dark Link fights"
+  },
+  {
+   "type": "each",
+   "obs": "dl_beaten",
+   "path": "rupees",
+   "op": "eq",
+   "value": 60,
+   "roles": [
+    "B"
+   ],
+   "label": "beating Dark Link gives the rupees back"
+  },
+  {
+   "type": "each",
+   "obs": "dl_beaten",
+   "path": "coop.marker",
+   "op": "eq",
+   "value": false,
+   "roles": [
+    "B"
+   ],
+   "label": "the marker is gone after Dark Link"
+  },
+  {
+   "type": "each",
+   "obs": "marker_placed",
+   "path": "coop.dark_link",
+   "op": "eq",
+   "value": false,
+   "roles": [
+    "B"
+   ],
+   "label": "Marker only: no Dark Link"
+  },
+  {
+   "type": "each",
+   "obs": "marker_walked",
+   "path": "rupees",
+   "op": "eq",
+   "value": 90,
+   "roles": [
+    "B"
+   ],
+   "label": "walking onto the marker picks up the rupees"
+  },
+  {
+   "type": "each",
+   "obs": "marker_walked",
+   "path": "coop.marker",
+   "op": "eq",
+   "value": false,
+   "roles": [
+    "B"
+   ],
+   "label": "the marker is gone after the pickup"
+  }
+ ]
+}

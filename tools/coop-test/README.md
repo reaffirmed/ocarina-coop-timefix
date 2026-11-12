@@ -8,7 +8,7 @@ play: the in-game test mode only turns on when `--coop-test` or `--coop-test-ext
 - The game build (`soh.exe`, `soh.o2r`, `assets/`) and the server build (`OOTServer.exe`).
 - Your own OoT NTSC 1.0 ROM, or an `oot.o2r` already generated from it for this build. The ROM is only read to
   generate `oot.o2r` once.
-- Python 3. Windows only (uses `taskkill` and hardlinks).
+- Python 3. Windows or Linux (on Linux the game is `soh.elf`; run under `xvfb-run -a` without a display).
 
 ## Run
 
@@ -18,7 +18,8 @@ python tools/coop-test/run.py \
     --server <path to OOTServer.exe> \
     --work <scratch folder, outside the repo> \
     --rom <path to oot.z64>          (or --o2r <existing oot.o2r>) \
-    [--scenario tools/coop-test/scenarios/smoke.json] [--timeout 240] [--port 21650] [--keep]
+    [--scenario tools/coop-test/scenarios/smoke.json] [--timeout 240] [--port 21650] [--keep] \
+    [--window 960x720] [--displays :95,:96]   (Linux: one X display per client, to record each one)
 ```
 
 Each option also has an environment variable: `SOH_BUILD_DIR`, `OOT_SERVER_EXE`, `SOH_TEST_WORK`, `SOH_TEST_ROM`,
@@ -75,19 +76,31 @@ frames):
 | `to_title` | leaves the save and goes back to the title screen, like the `reset` console command |
 | `wait_title` | waits until the world is gone |
 | `boot` | loads a fresh emptied debug save again from the title screen (optional `entrance`, `age`, `reset`) |
+| `approach_peer` | `dist` (default 50): puts Link that far from the first teammate, facing them |
+| `peer_hit` | `damage` (default 32), `name`: a teammate's hit through the friendly fire rules; records `allowed`, `before`, `after`, `lost` |
+| `coop_song` | `song` (default Zelda's Lullaby): finishes a free play song, as putting the ocarina away does |
+| `coop_bottle` | `item` (default 24, a fairy; 21 red potion, 22 green, 23 blue, 26 milk), `name`: uses that bottle on C-Left; records `given`, `slot_after` |
+| `coop_place_marker`, `move_to_marker` | `dist`, `rupees` / `dist`: puts a death marker in front of Link, or Link that far from the marker |
+| `coop_open_menu` | opens the Co-op menu on the open pause screen, as L does |
+| `coop_beat_dark_link` | sets the marker's Dark Link to 0 health, as the last hit does |
 | `log`, `quit` | `msg` / `pass`, `error` |
 
 Every step takes `timeout_frames`; a timeout fails the scenario. Scenarios: `smoke`, `damage` (party Damage Multiplier in and out of a dungeon), `items` (shared non-consumables, per-player ammo/rupees/HP/bottle contents, Share Ammo on, Story Co-op switched off mid session), `items_off` (Story Co-op never on), `flags` (shared story flags, per-player gift flags, Weird Egg, Zelda's Letter gated on Lullaby). Cross-client sync inside a scenario uses a shared infTable flag as a signal.  Optional top-level `cvars` and per-role `cvars` set
 arbitrary CVars before the client starts.
 
 Assertion types: `each` (every client, or only `roles`, `obs`/`path`/`op`/`value`, ops `eq ne ge gt le lt truthy`), `count` (number of
-clients where `path == value` equals `equals`), `same` (all clients agree on `path`), `cross_equal`, `rel` (compare `a` and `b`, each `role`/`obs`/`path`, with `delta` meaning b - a, or an `op`). Paths are dotted
+clients where `path == value` equals `equals`), `same` (all clients agree on `path`), `cross_equal`, `rel` (compare `a` and `b`, each `role`/`obs`/`path`, with `delta` meaning b - a, `min_delta` meaning b - a is at least that, or an `op`). Paths are dotted
 and can index lists (`peers.0.age`).
 
 An observation records connection, network id, nickname, party id, admin flags, party size, the party settings as the
 client sees them (`story_coop`, `share_ammo`, `story_code`), `story_active`, pedestal hold and vote counts, the
 player list (`peers`: id, name, in_party, scene, room, age), the number of remote player actors, and in-world state
-(scene, room, `link_age` 0 adult / 1 child, health, rupees, position, requested flags).
+(scene, room, `link_age` 0 adult / 1 child, health, rupees, position, requested flags), and `coop` (the co-op rules as
+the client sees them, downed, downed teammates, ready check, join summary, death marker, Dark Link, notice, magic,
+game over state). Save fields for `wait_until` cond `field` include `magic`, `magic_level`, `rupees`, `health`,
+`game_over_state`, `player_dead`, `coop_downed`, `coop_downed_mates`, `coop_ready_hold`, `coop_ready_vote`,
+`coop_join_count`, `coop_marker`, `coop_marker_rupees`, `coop_dark_link`, `coop_menu`, `coop_death_penalty`,
+`warp_hold`.
 
 ## In-game flags
 
@@ -151,3 +164,14 @@ writes save slot 0 and reads it back. `timetravel` is long: pass `--timeout 1100
 
 OOTSteamLink: `tools/steamlink/test/stream_test.py`, `e2e_test.py` and `launch_test.py` (the join tool starts `soh.exe` itself
 with `OOT_SERVER` set; the server must log the player) all run on the mock Steam DLL.
+
+`coop_rules` hosts a party with the co-op rules on (Light friendly fire, both revives, Marker, half the rupees, 5 second
+cooldown, ready check) and checks: the joiner gets the rules, Light friendly fire halves a hit and never takes the last
+heart, a death next to a teammate goes down instead of a Game Over, Zelda's Lullaby (48 magic) revives with 3 hearts, a
+fairy given from a bottle revives with 8 hearts and empties the bottle, a red potion fully heals a teammate who is up,
+walking into the Deku Tree asks the other player for the ready check, and a Game Over with nobody around waits the
+cooldown and leaves a marker with half the rupees.
+
+`coop_darklink` (both adult) places a marker with Marker + Dark Link: Dark Link appears with the notice, wakes up and
+fights when Link comes close, and beating him gives the rupees back. Then the host switches the party to Marker only
+and walking onto a new marker picks its rupees up.

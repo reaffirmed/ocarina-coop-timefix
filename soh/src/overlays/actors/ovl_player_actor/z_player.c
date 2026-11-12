@@ -40,6 +40,11 @@
 
 const char* ZeldaOnline_LocalSkinName(); // ZO - Get the local players chosen skin
 s32 ZeldaOnline_ScaleEnemyDamage(s32 healthChange); // ZO - Party damage multiplier for hits from enemies
+// ZO - Co-op rules (ZeldaOnlineCoopRules.cpp): friendly fire, the downed state and revives, bottles given to teammates
+s32 ZeldaOnline_FriendlyFireHit(Player* player, Actor* attacker);
+s32 ZeldaOnline_EnterDowned(PlayState* play, Player* player);
+s32 ZeldaOnline_GiveBottle(PlayState* play, Player* player, s32 itemAction);
+static s16 sZoReviveHealth = 0; // health a teammate's revive gives back, 0 for the fairy's full hearts
 
 // Some player animations are played at this reduced speed, for reasons yet unclear.
 // This is called "adjusted" for now.
@@ -3482,6 +3487,11 @@ void Player_UseItem(PlayState* play, Player* this, s32 item) {
                 // Handle "cutscene items"
                 if (!Player_CheckHostileLockOn(this) ||
                     ((itemAction >= PLAYER_IA_BOTTLE_POTION_RED) && (itemAction <= PLAYER_IA_BOTTLE_FAIRY))) {
+                    // SOH [ZeldaOnline] co-op: a fairy, potion or milk used next to a teammate is given to them
+                    if ((itemAction >= PLAYER_IA_BOTTLE_POTION_RED) && (itemAction <= PLAYER_IA_BOTTLE_FAIRY) &&
+                        ZeldaOnline_GiveBottle(play, this, itemAction)) {
+                        return;
+                    }
                     func_8002D53C(play, &play->actorCtx.titleCtx);
                     this->unk_6AD = 4;
                     this->itemAction = itemAction;
@@ -3539,6 +3549,11 @@ void func_80836448(PlayState* play, Player* this, LinkAnimationHeader* anim) {
         if (Inventory_ConsumeFairy(play)) {
             play->gameOverCtx.state = GAMEOVER_REVIVE_START;
             this->av1.actionVar1 = 1;
+        } else if (ZeldaOnline_EnterDowned(play, this)) {
+            // SOH [ZeldaOnline] co-op: Link lies down and waits for a teammate's revive (Player_ZoRevive) or the
+            // Game Over (Player_ZoStartGameOver). The game over state stays inactive meanwhile.
+            this->av1.actionVar1 = 0;
+            this->av2.actionVar2 = 0;
         } else {
             play->gameOverCtx.state = GAMEOVER_DEATH_START;
             func_800F6AB0(0);
@@ -3550,6 +3565,34 @@ void func_80836448(PlayState* play, Player* this, LinkAnimationHeader* anim) {
         OnePointCutscene_Init(play, 9806, cond ? 120 : 60, &this->actor, MAIN_CAM);
         ShrinkWindow_SetVal(0x20);
     }
+}
+
+// SOH [ZeldaOnline] co-op revive of a downed Link (see ZeldaOnline_EnterDowned): he gets up as after a fairy, with
+// `health` (1/16 hearts) instead of full hearts.
+void Player_ZoRevive(PlayState* play, Player* this, s16 health) {
+    if (!(this->stateFlags1 & PLAYER_STATE1_DEAD) || (play->gameOverCtx.state != GAMEOVER_INACTIVE)) {
+        return;
+    }
+    sZoReviveHealth = CLAMP(health, 1, gSaveContext.healthCapacity);
+    this->av1.actionVar1 = 0;
+    // func_80843AE8 plays the rebirth animation when this runs out, as after a fairy
+    this->av2.actionVar2 = 60;
+    // the fairy revive's camera: it also ends the death camera (which never ends by itself), so the letterbox and
+    // the HUD come back when Link is up
+    OnePointCutscene_Init(play, 9908, 125, &this->actor, MAIN_CAM);
+}
+
+// SOH [ZeldaOnline] co-op: nobody revived the downed Link in time, the normal Game Over goes ahead.
+void Player_ZoStartGameOver(PlayState* play, Player* this) {
+    if (!(this->stateFlags1 & PLAYER_STATE1_DEAD) || (play->gameOverCtx.state != GAMEOVER_INACTIVE) ||
+        (this->av2.actionVar2 != 0)) {
+        return;
+    }
+    play->gameOverCtx.state = GAMEOVER_DEATH_START;
+    func_800F6AB0(0);
+    Audio_PlayFanfare(NA_BGM_GAME_OVER);
+    gSaveContext.seqId = (u8)NA_BGM_DISABLED;
+    gSaveContext.natureAmbienceId = NATURE_ID_DISABLED;
 }
 
 int Player_CanUpdateItems(Player* this) {
@@ -4848,6 +4891,11 @@ s32 func_808382DC(Player* this, PlayState* play) {
             if (this->cylinder.base.acFlags & AC_HIT) {
                 Actor* ac = this->cylinder.base.ac;
                 s32 sp4C;
+
+                // SOH [ZeldaOnline] a teammate's hit: friendly fire rules (may lower the damage or drop the hit)
+                if ((ac != NULL) && !ZeldaOnline_FriendlyFireHit(this, ac)) {
+                    return 0;
+                }
 
                 if (ac->flags & ACTOR_FLAG_SFX_FOR_PLAYER_BODY_HIT) {
                     Player_PlaySfx(this, NA_SE_PL_BODY_HIT);
@@ -9497,7 +9545,8 @@ void func_80843AE8(PlayState* play, Player* this) {
                     LinkAnimation_Change(play, &this->skelAnime, &gPlayerAnim_link_derth_rebirth, 1.0f, 99.0f,
                                          Animation_GetLastFrame(&gPlayerAnim_link_derth_rebirth), ANIMMODE_ONCE, 0.0f);
                 }
-                gSaveContext.healthAccumulator = MAX_HEALTH;
+                gSaveContext.healthAccumulator = (sZoReviveHealth > 0) ? sZoReviveHealth : MAX_HEALTH;
+                sZoReviveHealth = 0;
                 this->av2.actionVar2 = -1;
             }
         } else if (gSaveContext.healthAccumulator == 0) {

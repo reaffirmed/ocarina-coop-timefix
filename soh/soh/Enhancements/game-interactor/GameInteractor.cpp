@@ -45,8 +45,8 @@ bool GameInteractor::IsSaveLoaded(bool allowDbgSave) {
         return false;
     }
 
-    // Valid save file or debug save
-    return (gSaveContext.fileNum >= 0 && gSaveContext.fileNum <= 2) || (allowDbgSave && gSaveContext.fileNum == 0xFF);
+    // Valid save file (3 is a co-op playthrough's own file, SaveManager::CoopFileNum) or debug save
+    return (gSaveContext.fileNum >= 0 && gSaveContext.fileNum <= 3) || (allowDbgSave && gSaveContext.fileNum == 0xFF);
 }
 
 bool GameInteractor::IsGameplayPaused() {
@@ -79,7 +79,7 @@ bool GameInteractor::IsPlayerInControl() {
         return false;
     }
 
-    if (!((gSaveContext.fileNum >= 0 && gSaveContext.fileNum <= 2) || gSaveContext.fileNum == 0xFF)) {
+    if (!((gSaveContext.fileNum >= 0 && gSaveContext.fileNum <= 3) || gSaveContext.fileNum == 0xFF)) {
         return false;
     }
 
