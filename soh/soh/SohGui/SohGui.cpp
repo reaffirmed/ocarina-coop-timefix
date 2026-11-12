@@ -25,6 +25,7 @@
 #include "soh/Enhancements/mod_menu.h"
 #include "soh/Network/Anchor/Anchor.h"
 #include "soh/Network/ZeldaOnline/ZeldaOnlineRoomWindow.hpp"
+#include "soh/Network/ZeldaOnline/ZeldaOnlineLobby.hpp"
 
 namespace SohGui {
 
@@ -91,6 +92,7 @@ std::shared_ptr<Notification::Window> mNotificationWindow;
 std::shared_ptr<TimeDisplayWindow> mTimeDisplayWindow;
 std::shared_ptr<AnchorRoomWindow> mAnchorRoomWindow;
 std::shared_ptr<ZeldaOnline::ZeldaOnlineRoomWindow> mZeldaOnlineRoomWindow;
+std::shared_ptr<ZeldaOnline::CoopLobbyWindow> mCoopLobbyWindow;
 
 UIWidgets::Colors GetMenuThemeColor() {
     return mSohMenu->GetMenuThemeColor();
@@ -203,7 +205,10 @@ void SetupGuiElements() {
     mZeldaOnlineRoomWindow = std::make_shared<ZeldaOnline::ZeldaOnlineRoomWindow>("", CVarGetInteger("gZeldaOnline.Enabled", 1) == 1, "ZeldaOnline");
     ZeldaOnline::ZeldaOnlineRoomWindow::Instance = mZeldaOnlineRoomWindow.get();
     gui->AddGuiWindow(mZeldaOnlineRoomWindow);
-
+    // shown by itself at the title screen (see CoopLobbyWindow::UpdateAutoShow)
+    mCoopLobbyWindow = std::make_shared<ZeldaOnline::CoopLobbyWindow>("", false, "CoopLobby");
+    ZeldaOnline::CoopLobbyWindow::Instance = mCoopLobbyWindow.get();
+    gui->AddGuiWindow(mCoopLobbyWindow);
 }
 
 void Destroy() {
@@ -238,6 +243,8 @@ void Destroy() {
     mPlandomizerWindow = nullptr;
     mTimeDisplayWindow = nullptr;
     mAnchorRoomWindow = nullptr;
+    ZeldaOnline::CoopLobbyWindow::Instance = nullptr;
+    mCoopLobbyWindow = nullptr;
 }
 
 void RegisterPopup(std::string title, std::string message, std::string button1, std::string button2,
