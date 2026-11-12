@@ -11,7 +11,6 @@
 //   the button icons of the game's font.
 // - "Zelda found the Hookshot" with the item's icon, in place of "Party progress received".
 // - Sounds from the game for co-op moments: a friend joins or leaves, says ready, everyone is ready, the countdown.
-// - The first time Story Co-op starts, a short intro in the game's text box.
 // - The party admin's game (vanilla, Master Quest, or which randomizer seed) travels in the party settings, and a
 //   member whose loaded save does not match is told so.
 

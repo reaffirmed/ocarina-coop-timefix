@@ -111,8 +111,6 @@ The presentation code is in `ZeldaOnlinePolish.cpp`, apart from the sync code.
   is playing.
 - **Sounds.** Game sounds for a friend joining or leaving the party, saying ready, everyone being ready, the cutscene
   countdown, items from the party, losing and getting back the connection. `gZeldaOnline.CoopSounds` 0 turns them off.
-- **First time intro.** The first time Story Co-op starts, a few pages in the game's text box explain what is shared,
-  what is yours, time travel and the cutscene countdown (`gZeldaOnline.CoopIntroSeen`).
 
 ## Gear you lose
 

@@ -13,7 +13,6 @@
 #include "soh/Enhancements/custom-message/CustomMessageManager.h"
 #include "soh/Enhancements/custom-message/CustomMessageTypes.h"
 #include "soh/Enhancements/randomizer/SeedContext.h"
-#include "soh/Enhancements/AutoTest/AutoTest.h"
 #include <ship/Context.h>
 
 #include <algorithm>
@@ -483,23 +482,6 @@ void CoopPolish::UpdateCues(ZeldaOnlineClient* c) {
     S.lastAllReady = allReady;
 }
 
-namespace {
-
-// Intro --------------------------------------------------------------------------------------------------------------
-
-void QueueIntro() {
-    QueueBox("%yWelcome to Story Co-op!%w^"
-             "You and your party share one adventure. Items, songs, medallions, heart containers and story "
-             "progress go to everyone.^"
-             "Your rupees, ammo and health are your own, unless the host chose to share them.^"
-             "Time travel happens together: when everyone is at the Master Sword, the whole party travels at once.^"
-             "When a friend starts a story scene near you, you get a few seconds to join them. Press %bL%w to keep "
-             "playing instead.^"
-             "Have fun out there!");
-}
-
-} // namespace
-
 // Game check ---------------------------------------------------------------------------------------------------------
 
 void CoopPolish::UpdateGameCheck(ZeldaOnlineClient* c) {
@@ -555,14 +537,6 @@ void CoopPolish::OnFrame() {
     bool active = c->StoryCoopActive();
     if (active && !S.wasStoryActive)
         S.warnedPair.clear();
-    // the scripted test clients only see the intro when a scenario asks for it
-    const bool introAllowed = !AutoTest::IsEnabled() || CVarGetInteger("gZeldaOnline.CoopIntroInTest", 0) != 0;
-    if (active && introAllowed && CVarGetInteger("gZeldaOnline.CoopIntroSeen", 0) == 0 && gPlayState != nullptr &&
-        gSaveContext.fileNum != 0xFF) {
-        CVarSetInteger("gZeldaOnline.CoopIntroSeen", 1);
-        Ship::Context::GetRawInstance()->GetWindow()->GetGui()->SaveConsoleVariablesNextFrame();
-        QueueIntro();
-    }
     S.wasStoryActive = active;
 }
 
