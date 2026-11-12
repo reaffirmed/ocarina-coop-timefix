@@ -118,13 +118,13 @@ The other itemGetInf bits flag one-time rewards whose items are shared: heart pi
 | `[2] & 0x1F` | Haggling dialogue progress of the Market man | `z_en_mu.c` | |
 | `[3] & 1` | Richard is near his owner (picks one of two text boxes) | `z_en_dog.c`, `z_en_hy.c` | |
 
-`STORY_EVENTINF_SHARE_MASK` stays empty. The Lon Lon Ranch and Epona gap is closed through `horseData` (section 7).
+`STORY_EVENTINF_SHARE_MASK` stays empty. The Lon Lon Ranch and Epona gap is closed through the eventChkInf flags (section 7); `horseData` stays per player.
 
 ## 7. Remaining save fields
 
 | Field | Status | Notes |
 | --- | --- | --- |
-| `horseData` (scene and position where Epona waits) | Shared, last writer wins | Added in this audit. Whoever parks Epona last decides where she is for the party. Whether Epona exists at all is eventChkInf 0x18 plus Epona's Song, both shared. |
+| `horseData` (scene and position where Epona waits) | Per player | Every member has their own Epona, so where she waits stays with each player (it was a shared last writer wins slot before; slot 1 is now ignored by the client). Whether Epona exists at all is eventChkInf 0x18 plus Epona's Song, both shared. |
 | `scarecrowSpawnSong(Set)`, `scarecrowLongSong(Set)` | Shared, last writer wins | Added in this audit. The live copies that the ocarina and the scarecrow actors read are updated as well. |
 | `worldMapAreaData` (map areas visited) | Shared | Added in this audit (or-ed). |
 | `highScores[0]` horseback archery best | Shared, highest | Added in this audit. |
@@ -176,7 +176,7 @@ Before: not shared although vanilla keeps them in the save and they are story pr
 
 | Gap | Now |
 | --- | --- |
-| Epona's parking spot (`horseData`) | Last writer wins slot |
+| Epona's parking spot (`horseData`) | Per player (each member has their own Epona) |
 | Scarecrow spawn song and long song | Last writer wins slots |
 | Water Temple water level, Forest Temple elevator (persistent in vanilla, excluded by mistake) | Last writer wins slots, applied by the server to a new dungeon instance |
 | Map areas visited (`worldMapAreaData`) | Or-ed |

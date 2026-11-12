@@ -248,19 +248,10 @@ bool StoryQuestBitToItem(int bit, u8& item) {
     return false;
 }
 
-// Epona's parking spot when no horse has ever been parked (z_horse.c Horse_ResetHorseData)
-const s16 kStoryHorseDefault[5] = { SCENE_HYRULE_FIELD, -1840, 72, 5497, -27353 };
-
 // Current game state of a last writer wins slot, as the bytes that travel. False for slots without a game side.
 bool StoryReadLww(uint8_t id, std::vector<uint8_t>& out) {
     out.clear();
     switch (id) {
-        case STORY_LWW_HORSE: {
-            s16 v[5] = { gSaveContext.horseData.scene, gSaveContext.horseData.pos.x, gSaveContext.horseData.pos.y,
-                         gSaveContext.horseData.pos.z, gSaveContext.horseData.angle };
-            out.assign((const uint8_t*)v, (const uint8_t*)v + sizeof(v));
-            return true;
-        }
         case STORY_LWW_SCARECROW_SPAWN:
             out.push_back(gSaveContext.scarecrowSpawnSongSet ? 1 : 0);
             out.insert(out.end(), (const uint8_t*)gSaveContext.scarecrowSpawnSong,
@@ -279,9 +270,6 @@ bool StoryReadLww(uint8_t id, std::vector<uint8_t>& out) {
 // True while a slot still holds what a new save starts with, which is not worth seeding into the team
 bool StoryLwwIsDefault(uint8_t id, const std::vector<uint8_t>& data) {
     switch (id) {
-        case STORY_LWW_HORSE:
-            return data.size() == sizeof(kStoryHorseDefault) &&
-                   std::memcmp(data.data(), kStoryHorseDefault, sizeof(kStoryHorseDefault)) == 0;
         case STORY_LWW_SCARECROW_SPAWN:
         case STORY_LWW_SCARECROW_LONG:
             return data.empty() || data[0] == 0;
@@ -294,20 +282,6 @@ bool StoryLwwIsDefault(uint8_t id, const std::vector<uint8_t>& data) {
 // side: the server sets them in a fresh dungeon instance and the game rebuilds the scene from the instance's switches.
 void StoryWriteLww(uint8_t id, const std::vector<uint8_t>& data) {
     switch (id) {
-        case STORY_LWW_HORSE: {
-            s16 v[5];
-            if (data.size() != sizeof(v))
-                return;
-            std::memcpy(v, data.data(), sizeof(v));
-            if (v[0] < 0 || v[0] >= STORY_SCENE_COUNT)
-                return;
-            gSaveContext.horseData.scene = v[0];
-            gSaveContext.horseData.pos.x = v[1];
-            gSaveContext.horseData.pos.y = v[2];
-            gSaveContext.horseData.pos.z = v[3];
-            gSaveContext.horseData.angle = v[4];
-            break;
-        }
         case STORY_LWW_SCARECROW_SPAWN:
             if (data.size() != 1 + sizeof(gSaveContext.scarecrowSpawnSong))
                 return;
@@ -529,6 +503,10 @@ void ZeldaOnlineClient::StoryLwwPublish(uint8_t id, const std::vector<uint8_t>& 
 void ZeldaOnlineClient::StoryLwwAdopt(const StoryLwwSlot& team) {
     if (team.id >= STORY_LWW_MAX_SLOTS)
         return;
+    // Every member has their own Epona, so where she waits stays with each player. A team save from before this
+    // change can still hold a shared spot; it is ignored here so it never moves anyone's horse.
+    if (team.id == STORY_LWW_HORSE)
+        return;
 
     StoryLwwLocal& slot = m_storyLww[team.id];
     if (slot.has) {
@@ -546,11 +524,11 @@ void ZeldaOnlineClient::StoryLwwAdopt(const StoryLwwSlot& team) {
     slot.data = team.data;
 }
 
-// Polled state: Epona's parking spot, the scarecrow songs and the Big Poe counter. Runs right before a snapshot is
+// Polled state: the scarecrow songs and the Big Poe counter. Runs right before a snapshot is
 // captured so a change is part of it, and a Big Poe delivery reaches the server before the snapshot that contains it.
 void ZeldaOnlineClient::StoryTrackLocalState() {
     std::vector<uint8_t> now;
-    for (uint8_t id : { STORY_LWW_HORSE, STORY_LWW_SCARECROW_SPAWN, STORY_LWW_SCARECROW_LONG }) {
+    for (uint8_t id : { STORY_LWW_SCARECROW_SPAWN, STORY_LWW_SCARECROW_LONG }) {
         if (!StoryReadLww(id, now))
             continue;
         const StoryLwwLocal& slot = m_storyLww[id];
@@ -846,7 +824,7 @@ bool ZeldaOnlineClient::StoryApply(const StoryProgress& team) {
             rando.bombchuUpgradeLevel = team.randoBombchuLevel;
     }
 
-    // map areas visited, best scores and records (what StoryHighScoreShared lists), Epona's spot and the scarecrow songs
+    // map areas visited, best scores and records (what StoryHighScoreShared lists) and the scarecrow songs
     gSaveContext.worldMapAreaData |= team.worldMapAreaData;
     const int poeBefore = gSaveContext.highScores[STORY_HS_POE_POINTS];
     for (int i = 0; i < STORY_HS_COUNT; i++) {

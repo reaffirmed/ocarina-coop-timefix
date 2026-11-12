@@ -51,6 +51,8 @@ https://github.com/user-attachments/assets/fedb77e0-4b35-44a7-9120-dce0d7005fcd
   story flags, Gold Skulltulas, Big Poe points, scarecrow songs, map progress. One player finds the Hookshot, everyone
   has it.
 - **Kept per player:** rupees, ammo and health (a party setting shares them too), bottle contents, one-time NPC gifts.
+- **Epona:** once anyone has her, every player summons and rides their own Epona with Epona's Song, and each
+  player's Epona waits where that player left her.
 - **Dungeons:** keys, switches, chests, cleared rooms and pickups update live for everyone in the dungeon, and are
   saved for the team. The Water Temple water level and the Forest Temple elevator are shared like in single player.
 - **Story cutscenes together:** when a story cutscene starts for one player, everyone in the same area watches it at
