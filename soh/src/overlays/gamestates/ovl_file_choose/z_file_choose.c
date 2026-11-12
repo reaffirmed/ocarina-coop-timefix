@@ -16,6 +16,7 @@
 #include "objects/gameplay_keep/gameplay_keep.h"
 #include "soh_assets.h"
 #include "soh/Enhancements/boss-rush/BossRush.h"
+#include "soh/Network/ZeldaOnline/ZeldaOnlineLobbyFileSelect.h"
 #include "soh/Enhancements/FileSelectEnhancements.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include <assert.h>
@@ -425,6 +426,11 @@ void FileChoose_UpdateMainMenu(GameState* thisx) {
     bool dpad = CVarGetInteger(CVAR_SETTING("DpadInText"), 0);
 
     FileChoose_UpdateRandomizer();
+
+    // R: the Co-op screen
+    if (CoopLobby_FileSelectCheckOpen(this)) {
+        return;
+    }
 
     if (CHECK_BTN_ALL(input->press.button, BTN_START) || CHECK_BTN_ALL(input->press.button, BTN_A)) {
         if (this->buttonIndex <= FS_BTN_MAIN_FILE_3) {
@@ -893,7 +899,8 @@ void FileChoose_RotateToOptions(GameState* thisx) {
  */
 void FileChoose_RotateToMain(GameState* thisx) {
     FileChooseContext* this = (FileChooseContext*)thisx;
-    if (this->configMode == CM_QUEST_TO_MAIN || this->configMode == CM_OPTIONS_TO_MAIN) {
+    if (this->configMode == CM_QUEST_TO_MAIN || this->configMode == CM_OPTIONS_TO_MAIN ||
+        this->configMode == CM_COOP_TO_MAIN) {
         this->windowRot -= VREG(16);
 
         if (this->windowRot <= 0.0f) {
@@ -992,7 +999,9 @@ static void (*gConfigModeUpdateFuncs[])(GameState*) = {
     FileChoose_StartBossRushMenu,   FileChoose_RotateToQuest,
     FileChoose_RotateToRandomizer,  FileChoose_UpdateRandomizerMenu,
     FileChoose_StartRandomizerMenu, FileChoose_RotateToQuest,
-    FileChoose_RotateToRandomizer,
+    FileChoose_RotateToRandomizer,  FileChoose_RotateToCoop,
+    FileChoose_UpdateCoopMenu,      FileChoose_StartCoopMenu,
+    FileChoose_RotateToMain,
 };
 
 static void (*gConfigModeUpdateFuncsNES[])(GameState*) = {
@@ -1023,7 +1032,9 @@ static void (*gConfigModeUpdateFuncsNES[])(GameState*) = {
     FileChoose_StartBossRushMenu,   FileChoose_RotateToQuest,
     FileChoose_RotateToRandomizer,  FileChoose_UpdateRandomizerMenu,
     FileChoose_StartRandomizerMenu, FileChoose_RotateToQuest,
-    FileChoose_RotateToRandomizer,
+    FileChoose_RotateToRandomizer,  FileChoose_RotateToCoop,
+    FileChoose_UpdateCoopMenu,      FileChoose_StartCoopMenu,
+    FileChoose_RotateToMain,
 };
 
 /**
@@ -2121,7 +2132,8 @@ void FileChoose_ConfigModeDraw(GameState* thisx) {
 
         if (this->windowRot != 0) {
             if ((this->configMode >= CM_MAIN_TO_OPTIONS && this->configMode <= CM_OPTIONS_TO_MAIN) ||
-                this->configMode == CM_ROTATE_TO_QUEST_MENU || this->configMode == CM_QUEST_TO_MAIN) {
+                this->configMode == CM_ROTATE_TO_QUEST_MENU || this->configMode == CM_QUEST_TO_MAIN ||
+                (this->configMode >= CM_ROTATE_TO_COOP_MENU && this->configMode <= CM_COOP_TO_MAIN)) {
                 Matrix_RotateX(this->windowRot / 100.0f, MTXMODE_APPLY);
             } else {
                 Matrix_RotateX((this->windowRot - 942.0f) / 100.0f, MTXMODE_APPLY);
@@ -2142,6 +2154,10 @@ void FileChoose_ConfigModeDraw(GameState* thisx) {
         gDPPipeSync(POLY_OPA_DISP++);
 
         FileChoose_DrawWindowContents(&this->state);
+    }
+
+    if (this->configMode == CM_MAIN_MENU) {
+        CoopLobby_FileSelectDrawPrompt(this);
     }
 
     // draw name entry menu
@@ -2210,6 +2226,36 @@ void FileChoose_ConfigModeDraw(GameState* thisx) {
             FileChoose_DrawOptions(&this->state);
         } else { // GAME_REGION_NTSC
             FileChoose_DrawOptionsNES(&this->state);
+        }
+    }
+
+    // draw the Co-op screen, on the face of the window where the options menu is
+    if (this->configMode >= CM_ROTATE_TO_COOP_MENU && this->configMode <= CM_COOP_TO_MAIN) {
+        gDPPipeSync(POLY_OPA_DISP++);
+        gDPSetCombineMode(POLY_OPA_DISP++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+        gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, this->windowColor[0], this->windowColor[1], this->windowColor[2],
+                        this->windowAlpha);
+        gDPSetEnvColor(POLY_OPA_DISP++, 0, 0, 0, 0);
+
+        Matrix_Translate(0.0f, 0.0f, -93.6f, MTXMODE_NEW);
+        Matrix_Scale(0.78f, 0.78f, 0.78f, MTXMODE_APPLY);
+        Matrix_RotateX((this->windowRot - 314.0f) / 100.0f, MTXMODE_APPLY);
+
+        gSPMatrix(POLY_OPA_DISP++, MATRIX_NEWMTX(this->state.gfxCtx), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+
+        gSPVertex(POLY_OPA_DISP++, &this->windowVtx[0], 32, 0);
+        gSPDisplayList(POLY_OPA_DISP++, gFileSelWindow1DL);
+
+        gSPVertex(POLY_OPA_DISP++, &this->windowVtx[32], 32, 0);
+        gSPDisplayList(POLY_OPA_DISP++, gFileSelWindow2DL);
+
+        gSPVertex(POLY_OPA_DISP++, &this->windowVtx[64], 16, 0);
+        gSPDisplayList(POLY_OPA_DISP++, gFileSelWindow3DL);
+
+        gDPPipeSync(POLY_OPA_DISP++);
+
+        if (this->configMode == CM_COOP_MENU || this->configMode == CM_START_COOP_MENU) {
+            FileChoose_DrawCoopMenu(this);
         }
     }
 

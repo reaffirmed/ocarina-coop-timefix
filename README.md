@@ -23,12 +23,12 @@ by lukegrahamSydney. Two or more players go through the adventure together as on
    open, right-click you in Steam and Join Game works too). Then the host creates a party in the online window with **Story Co-op** turned on and invites
    them.
 
-**Or do it all from inside the game:** start the game normally and the **Co-op Lobby** opens on the title screen.
-Choose **Host a game**, pick the playthrough to continue (or start a new one), set its story settings (shared ammo
+**Or do it all from inside the game:** start the game normally and press **R** on the file select screen to turn
+to the **Co-op** menu, drawn like the game's own menus and used with the controller. Choose **Host a game**, pick the playthrough to continue (or start a new one), set its story settings (shared ammo
 and health, extra or tougher enemies), and the server, the Steam lobby and the
-Story Co-op party are set up for you. Your friend chooses **Join a friend** and clicks your name; they are added to the
-party by themselves. Then everyone picks a save file as usual. The lobby remembers each playthrough, when you last
-played it, with whom and on which file. It is also in the menu under Network > Zelda Online > Co-op Lobby.
+Story Co-op party are set up for you. Your friend chooses **Join a friend** and picks your name; they are added to the
+party by themselves. Then everyone chooses **Choose a save file** (or presses B) and picks a file as usual. The lobby remembers each playthrough, when you last
+played it, with whom and on which file. A window version is also in the menu under Network > Zelda Online > Co-op Lobby.
 
 No IP addresses or port forwarding: the connection goes through Steam's relay network (Valve's free "Spacewar" app).
 Both players need Steam running. You can also run `OOTServer.exe` yourself and connect by address as in

@@ -27,7 +27,7 @@ extern SaveContext gSaveContext;
 
 namespace ZeldaOnline {
 
-static const char* kShowOnTitleCVar = "gZeldaOnline.Lobby.ShowOnTitle";
+static const char* kHideAddressFormCVar = "gZeldaOnline.Lobby.HideAddressForm";
 static const ImVec4 kErrorColor = ImVec4(1.0f, 0.45f, 0.4f, 1.0f);
 static const ImVec4 kGoodColor = ImVec4(0.55f, 0.9f, 0.55f, 1.0f);
 
@@ -237,6 +237,91 @@ void CoopLobbyWindow::OnClientLeftLobby() {
     m_clientStarted = false;
 }
 
+CoopLobbyWindow::Status CoopLobbyWindow::SessionStatus() const {
+    if (m_stopping)
+        return Status::Stopping;
+    ZeldaOnlineClient* client = ZeldaOnlineClient::Instance;
+    switch (m_helper.state) {
+        case CoopLobbyHelper::State::Idle:
+        case CoopLobbyHelper::State::Stopped:
+            return Status::Idle;
+        case CoopLobbyHelper::State::Starting:
+            return Status::Starting;
+        case CoopLobbyHelper::State::Picking:
+            return Status::Picking;
+        case CoopLobbyHelper::State::Failed:
+            return Status::Failed;
+        case CoopLobbyHelper::State::Ready:
+            break;
+    }
+    if (m_helper.hostGone)
+        return Status::HostGone;
+    if (client == nullptr || !client->IsConnectedToServer() || !m_clientStarted)
+        return Status::Connecting;
+    if (client->PartyID() == 0)
+        return Status::FormingParty;
+    return Status::Ready;
+}
+
+bool CoopLobbyWindow::SessionActive() const {
+    const Status s = SessionStatus();
+    return s != Status::Idle && s != Status::Failed;
+}
+
+std::vector<std::string> CoopLobbyWindow::PartyNames() const {
+    std::vector<std::string> names;
+    if (ZeldaOnlineRoomWindow::Instance != nullptr)
+        for (const auto& e : ZeldaOnlineRoomWindow::Instance->Players())
+            if (e.isInParty)
+                names.push_back(e.name);
+    return names;
+}
+
+int CoopLobbyWindow::LastFileForSession() {
+    EnsureListLoaded();
+    if (IsHosting()) {
+        CoopPlaythrough* p = m_list.FindByCode(m_activeCode);
+        return p != nullptr ? p->lastFile : -1;
+    }
+    for (const auto& j : m_list.joined)
+        if (j.host == m_connectedTo)
+            return j.lastFile;
+    return -1;
+}
+
+std::string CoopLobbyWindow::SteamProblem() {
+    static int checked = -1; // the folder does not change while the game runs
+    static std::string problem;
+    if (checked < 0) {
+        checked = 1;
+        if (!CoopLobbyHelper::Supported())
+            problem = "Steam hosting is not available on this system.";
+        else if (CoopLobbyHelper::FindExecutable().empty())
+            problem = "OOTSteamLink is missing from the game folder.";
+    }
+    return problem;
+}
+
+int CoopLobbyWindow::NewPlaythrough() {
+    EnsureListLoaded();
+    CoopPlaythrough p;
+    p.name = "Playthrough " + std::to_string(m_list.hosted.size() + 1);
+    p.code = GenerateStoryCode();
+    p.created = (int64_t)time(nullptr);
+    p.hostNick = CVarGetString("gZeldaOnline.Nickname", "Player");
+    p.settings = SettingsFromCVars();
+    m_list.hosted.insert(m_list.hosted.begin(), p);
+    m_list.Save();
+    return 0;
+}
+
+void CoopLobbyWindow::ClearFinished() {
+    if (m_helper.state == CoopLobbyHelper::State::Failed || m_helper.state == CoopLobbyHelper::State::Stopped)
+        m_helper.state = CoopLobbyHelper::State::Idle;
+    m_page = Page::Home;
+    m_message.clear();
+}
+
 void CoopLobbyWindow::StopAll() {
     if (Client() != nullptr)
         Client()->LobbyLeave();
@@ -330,20 +415,13 @@ void CoopLobbyWindow::UpdateAutoShow() {
     if (inGame || m_seenTitle)
         return;
     m_seenTitle = true;
-    if (CVarGetInteger(kShowOnTitleCVar, 1) == 0 || AutoTest::IsEnabled() || std::getenv("OOT_SERVER") != nullptr)
+    if (AutoTest::IsEnabled() || std::getenv("OOT_SERVER") != nullptr)
         return; // started by Host/Join over Steam, or by a test: that already connects
-    ZeldaOnlineClient* client = Client();
-    if (client != nullptr && client->IsConnectedToServer() &&
-        client->GetLobbyRole() == ZeldaOnlineClient::LobbyRole::None)
-        return; // connected another way (the online window)
-    if (!IsVisible()) {
-        EnsureListLoaded();
-        Show();
-        m_autoShown = true;
-        // the lobby replaces the online window's address form at the title screen ("Connect by address" opens it)
-        if (ZeldaOnlineRoomWindow::Instance != nullptr && !ZeldaOnlineRoomWindow::Instance->IsConnected())
-            ZeldaOnlineRoomWindow::Instance->Hide();
-    }
+    // The Co-op screen of the file select (R) replaces the online window's address form at the title screen; the
+    // address form is still in the Network menu and behind "Connect by address" in this window.
+    if (CVarGetInteger(kHideAddressFormCVar, 1) != 0 && ZeldaOnlineRoomWindow::Instance != nullptr &&
+        !ZeldaOnlineRoomWindow::Instance->IsConnected())
+        ZeldaOnlineRoomWindow::Instance->Hide();
 }
 
 void CoopLobbyWindow::Draw() {
@@ -436,7 +514,7 @@ void CoopLobbyWindow::DrawHome() {
     DrawNicknameField();
     ImGui::Spacing();
 
-    const bool steam = CoopLobbyHelper::Supported() && !CoopLobbyHelper::FindExecutable().empty();
+    const bool steam = SteamProblem().empty();
     ImGui::BeginDisabled(!steam);
     if (BigButton(ICON_FA_HOME "  Host a game")) {
         m_page = Page::HostPick;
@@ -467,13 +545,7 @@ void CoopLobbyWindow::DrawHome() {
             ZeldaOnlineRoomWindow::Instance->CenterAndExpand();
         }
     }
-    bool showOnTitle = CVarGetInteger(kShowOnTitleCVar, 1) != 0;
-    if (ImGui::Checkbox("Show at the title screen", &showOnTitle)) {
-        CVarSetInteger(kShowOnTitleCVar, showOnTitle ? 1 : 0);
-        SaveCVarsSoon();
-    }
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("You can always open it from the menu: Network > Zelda Online > Co-op Lobby");
+    ImGui::TextDisabled("Also on the file select screen: press R for Co-op.");
 }
 
 void CoopLobbyWindow::DrawPlaythroughRow(int index) {
@@ -637,15 +709,11 @@ void CoopLobbyWindow::DrawHostPick() {
     ImGui::InputTextWithHint("##zo_new_name", "Name, e.g. Saturday run", m_newName, sizeof(m_newName));
     ImGui::SameLine();
     if (ImGui::Button("Start new")) {
-        CoopPlaythrough p;
-        p.name =
-            m_newName[0] != '\0' ? std::string(m_newName) : "Playthrough " + std::to_string(m_list.hosted.size() + 1);
-        p.code = GenerateStoryCode();
-        p.created = (int64_t)time(nullptr);
-        p.hostNick = CVarGetString("gZeldaOnline.Nickname", "Player");
-        p.settings = SettingsFromCVars();
-        m_list.hosted.insert(m_list.hosted.begin(), p);
-        m_list.Save();
+        const int index = NewPlaythrough();
+        if (m_newName[0] != '\0') {
+            m_list.hosted[index].name = m_newName;
+            m_list.Save();
+        }
         m_newName[0] = '\0';
         m_selected = 0; // its story settings show, then Host this playthrough
     }

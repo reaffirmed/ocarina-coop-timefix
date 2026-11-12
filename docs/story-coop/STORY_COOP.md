@@ -8,36 +8,38 @@ Open the party window, then tick **Story Co-op** in the party settings (party ad
 
 ## Co-op Lobby (host and join from the game)
 
-The **Co-op Lobby** window opens on the title screen (turn that off with **Show at the title screen**; it is always in
-Network > Zelda Online > Co-op Lobby). It needs `OOTSteamLink` and `OOTServer` from the download next to the game, and
-Steam running (Windows and Linux).
+Press **R** on the file select screen: the window turns to the **Co-op** menu (the same turn as the Options menu),
+drawn with the game's window, font, cursor and menu sounds. Use the control stick (or the D-pad, with D-pad in text
+on), A to choose, left / right to change a setting, and B to go back. The bottom right of the file select shows
+"R: Co-op" and what the lobby is doing. The same lobby is also a window in Network > Zelda Online > Co-op Lobby.
+It needs `OOTSteamLink` and `OOTServer` from the download next to the game, and Steam running (Windows and Linux).
 
 - **Host a game** lists your playthroughs, newest first, with the date you last played, the save file you used and who
-  played with you. **Host this playthrough** (or a double click on a playthrough) starts the server and a friends-only
+  played with you. Choosing one opens its story settings; **Start hosting** (in the window: **Host this playthrough**) starts the server and a friends-only
   Steam lobby in the background, connects you, and creates a Story Co-op party with that playthrough's story settings
   and team code, so the server loads its team save. **Start new** adds a new playthrough with a fresh team code and
-  selects it, so you can set it up before hosting. Right-click a playthrough to rename
-  it, copy its team code or remove it from the list (the team save itself stays on the server).
+  selects it, so you can set it up before hosting. In the window version, right-click a
+  playthrough to rename it, copy its team code or remove it from the list (the team save itself stays on the server).
 - **Story settings** are kept per playthrough and shown under the selected one: share ammo, rupees and health,
   private dungeons, extra enemies and tougher enemies (with their amounts). A new playthrough starts from the party
-  settings you used last. While hosting, **Story settings** next to Stop hosting changes them for the whole party right
+  settings you used last. While hosting, **Story settings** changes them for the whole party right
   away (slider changes apply when you let go). The team code itself cannot change once the party exists.
 - A playthrough is hosted under the nickname it was first hosted with, because the server keys the team save by the
   host's nickname and the team code. The lobby switches back to that name and says so.
 - Everybody who connects to the host's server is invited to the party by itself.
 - **Join a friend** lists the Steam friends who are hosting. Click one to join; the host's invite is accepted by
   itself. Accepting a Steam invite, or Join Game in the Steam friends list, works too while the list is open.
-- Then everyone picks a save file on the normal file select screen. The lobby points at the file you used for this
+- Then everyone chooses **Choose a save file** (or presses B): the window turns back to the files while the session
+  keeps running, and R returns to the Co-op menu. The lobby points at the file you used for this
   playthrough last time; any file works, because the team progress is merged into it.
 - **Stop hosting** saves the team progress and stops the server. Closing the game does the same.
 - The lobby's playthrough list is `coop-playthroughs.json` in the game's folder. A team code that was in use before the
   lobby existed is added to it as "Earlier playthrough".
-- `Host over Steam` / `Join over Steam` and connecting by address still work as before. A game started by them does not
-  open the lobby.
+- `Host over Steam` / `Join over Steam` and connecting by address still work as before.
 
 How it works: the lobby starts `OOTSteamLink host --no-game` or `join --no-launch` hidden, with `--status-file` and
 `--parent-pid` (see `tools/steamlink/README.md`), and connects the online client to the local port the helper reports.
-Code: `soh/soh/Network/ZeldaOnline/ZeldaOnlineLobby.*`, `ZeldaOnlineLobbyHelper.cpp`, and `LobbyConnect` /
+Code: `soh/soh/Network/ZeldaOnline/ZeldaOnlineLobby.*`, `ZeldaOnlineLobbyFileSelect.*` (the file select menu), `ZeldaOnlineLobbyHelper.cpp`, and `LobbyConnect` /
 `LobbyAfterAuth` / `LobbyInviteEveryone` / `LobbyAutoAccept` in `ZeldaOnlineClient.cpp`.
 
 ## What is shared

@@ -107,6 +107,41 @@ class CoopLobbyWindow : public Ship::GuiWindow {
     // stops hosting or joining (the server saves the team progress)
     void StopAll();
 
+    // ---- used by the Co-op screen of the file select (ZeldaOnlineLobbyFileSelect.cpp) as well as by this window
+    enum class Status { Idle, Starting, Picking, Connecting, FormingParty, Ready, HostGone, Failed, Stopping };
+    Status SessionStatus() const;
+    bool SessionActive() const; // hosting or joining, from starting up until stopped
+    bool IsHosting() const {
+        return !m_activeCode.empty();
+    }
+    const std::string& ConnectedTo() const {
+        return m_connectedTo;
+    }
+    const std::string& Error() const {
+        return m_helper.error;
+    }
+    const std::vector<CoopLobbyHelper::Friend>& HostingFriends() const {
+        return m_helper.friends;
+    }
+    CoopPlaythroughList& Playthroughs() {
+        EnsureListLoaded();
+        return m_list;
+    }
+    CoopPlaythrough* ActivePlaythrough() {
+        return m_list.FindByCode(m_activeCode);
+    }
+    std::vector<std::string> PartyNames() const;
+    int LastFileForSession();          // the save file used for this playthrough / with this friend, -1 unknown
+    static std::string SteamProblem(); // empty when hosting and joining over Steam can work here
+    int NewPlaythrough();              // adds one (settings from last time) and returns its index
+    void StartHosting(int index);
+    void StartJoining();
+    void JoinFriend(const CoopLobbyHelper::Friend& f) {
+        m_helper.Pick(f.lobby);
+    }
+    void ClearFinished(); // after a failure or a stop: back to idle
+    void OnStorySettingsChanged(CoopPlaythrough& p);
+
   private:
     enum class Page { Home, HostPick, Session };
     Page m_page = Page::Home;
@@ -138,11 +173,8 @@ class CoopLobbyWindow : public Ship::GuiWindow {
     void DrawNicknameField();
     void DrawPlaythroughRow(int index);
     bool DrawStorySettings(PartySettings& settings);
-    void OnStorySettingsChanged(CoopPlaythrough& p);
     bool m_showSettings = false;
 
-    void StartHosting(int index);
-    void StartJoining();
     void ConnectClient();
     void RecordSaveFile();
     void UpdateAutoShow();
