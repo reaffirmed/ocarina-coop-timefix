@@ -1,4 +1,7 @@
 #include "global.h"
+#include "soh/Network/ZeldaOnline/LiveMenus.h"
+
+uint8_t gZeldaOnlineLivePause = 0;
 
 s16 sKaleidoSetupKscpPos0[] = { PAUSE_QUEST, PAUSE_EQUIP, PAUSE_ITEM, PAUSE_MAP };
 f32 sKaleidoSetupEyeX0[] = { 0.0f, 64.0f, 0.0f, -64.0f };
@@ -57,7 +60,10 @@ void KaleidoSetup_Update(PlayState* play) {
 
         if (pauseCtx->state == 1) {
             WREG(2) = -6240;
-            R_UPDATE_RATE = 2;
+            // SOH [ZeldaOnline] A live menu keeps the world running, so it keeps the gameplay update rate. The menu
+            // normally runs at 30 updates per second, which would run the world 1.5x as fast.
+            gZeldaOnlineLivePause = ZeldaOnline_LiveMenusEnabled();
+            R_UPDATE_RATE = gZeldaOnlineLivePause ? 3 : 2;
 
             if (ShrinkWindow_GetVal()) {
                 ShrinkWindow_SetVal(0);

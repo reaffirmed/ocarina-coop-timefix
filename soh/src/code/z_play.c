@@ -13,6 +13,7 @@
 #include "soh/ResourceManagerHelpers.h"
 #include "soh/SaveManager.h"
 #include "soh/framebuffer_effects.h"
+#include "soh/Network/ZeldaOnline/LiveMenus.h"
 
 #include <time.h>
 #include <assert.h>
@@ -687,6 +688,29 @@ void Play_Init(GameState* thisx) {
     GameInteractor_ExecuteOnPlayPostInit(gPlayState->sceneNum);
 }
 
+// SOH [ZeldaOnline] The world runs on under a live pause menu (LiveMenus.h), so the menu closes by itself when
+// something needs the screen: Link dies, a scene change starts, a cutscene plays or a textbox opens. Game over,
+// textboxes and scene changes only advance once the menu has closed. Only a fully open menu (states 4 to 7) is
+// closed, the same way the Start button closes it; a menu still opening reaches state 4 within a few frames.
+static void Play_CloseLivePauseMenu(PlayState* play) {
+    PauseContext* pauseCtx = &play->pauseCtx;
+    Player* player = GET_PLAYER(play);
+
+    if (!gZeldaOnlineLivePause || (pauseCtx->state < 4) || (pauseCtx->state > 7)) {
+        return;
+    }
+
+    if (((player != NULL) && (player->stateFlags1 & PLAYER_STATE1_DEAD)) ||
+        (play->gameOverCtx.state != GAMEOVER_INACTIVE) || (play->transitionTrigger != TRANS_TRIGGER_OFF) ||
+        (play->transitionMode != TRANS_MODE_OFF) || (play->csCtx.state != CS_STATE_IDLE) ||
+        (play->msgCtx.msgMode != MSGMODE_NONE) || ((player != NULL) && (player->csAction != 0))) {
+        Interface_SetDoAction(play, DO_ACTION_NONE);
+        pauseCtx->state = 0x12;
+        WREG(2) = -6240;
+        func_800F64E0(0);
+    }
+}
+
 void Play_Update(PlayState* play) {
     Input* input = play->state.input;
     s32 isPaused;
@@ -729,7 +753,9 @@ void Play_Update(PlayState* play) {
     gSegments[2] = VIRTUAL_TO_PHYSICAL(play->sceneSegment);
 
     if (FrameAdvance_Update(&play->frameAdvCtx, &input[1])) {
-        if ((play->transitionMode == TRANS_MODE_OFF) && (play->transitionTrigger != TRANS_TRIGGER_OFF)) {
+        // SOH [ZeldaOnline] A scene change waits for a live pause menu to close (Play_CloseLivePauseMenu)
+        if ((play->transitionMode == TRANS_MODE_OFF) && (play->transitionTrigger != TRANS_TRIGGER_OFF) &&
+            !(gZeldaOnlineLivePause && (play->pauseCtx.state != 0))) {
             play->transitionMode = TRANS_MODE_SETUP;
         }
 
@@ -1142,13 +1168,18 @@ void Play_Update(PlayState* play) {
         if (1 && (gTrnsnUnkState != 3)) {
             PLAY_LOG(3542);
 
+            if (play->pauseCtx.state == 0) {
+                gZeldaOnlineLivePause = false;
+            }
+
             if ((gSaveContext.gameMode == GAMEMODE_NORMAL) && (play->msgCtx.msgMode == MSGMODE_NONE) &&
                 (play->gameOverCtx.state == GAMEOVER_INACTIVE)) {
                 KaleidoSetup_Update(play);
             }
 
             PLAY_LOG(3551);
-            isPaused = (play->pauseCtx.state != 0) || (play->pauseCtx.debugState != 0);
+            // SOH [ZeldaOnline] The world keeps running under a live pause menu (LiveMenus.h)
+            isPaused = ((play->pauseCtx.state != 0) && !gZeldaOnlineLivePause) || (play->pauseCtx.debugState != 0);
 
             PLAY_LOG(3555);
             AnimationContext_Reset(&play->animationCtx);
@@ -1209,7 +1240,16 @@ void Play_Update(PlayState* play) {
                     PLAY_LOG(3637);
 
                     if (!play->unk_11DE9) {
-                        Actor_UpdateAll(play, &play->actorCtx);
+                        // SOH [ZeldaOnline] The controller drives the live pause menu, not Link or his horse
+                        if (gZeldaOnlineLivePause && (play->pauseCtx.state != 0)) {
+                            Input savedInput = input[0];
+
+                            memset(&input[0], 0, sizeof(input[0]));
+                            Actor_UpdateAll(play, &play->actorCtx);
+                            input[0] = savedInput;
+                        } else {
+                            Actor_UpdateAll(play, &play->actorCtx);
+                        }
                     }
 
                     PLAY_LOG(3643);
@@ -1263,6 +1303,8 @@ void Play_Update(PlayState* play) {
             SkyboxDraw_Update(&play->skyboxCtx);
 
             PLAY_LOG(3716);
+
+            Play_CloseLivePauseMenu(play);
 
             if ((play->pauseCtx.state != 0) || (play->pauseCtx.debugState != 0)) {
                 PLAY_LOG(3721);
@@ -1361,7 +1403,7 @@ void Play_Draw(PlayState* play) {
     // If the size has changed, alt assets toggled, or dropped frames leading to the buffer not being copied,
     // set the prerender state back to setup to copy a new frame.
     // This requires not rendering kaleido during this copy to avoid kaleido itself being copied too.
-    if ((R_PAUSE_MENU_MODE == 2 || R_PAUSE_MENU_MODE == 3) &&
+    if (!gZeldaOnlineLivePause && (R_PAUSE_MENU_MODE == 2 || R_PAUSE_MENU_MODE == 3) &&
         (lastPauseWidth != OTRGetGameRenderWidth() || lastPauseHeight != OTRGetGameRenderHeight() ||
          lastAltAssets != ResourceMgr_IsAltAssetsEnabled() || !hasCapturedPauseBuffer)) {
         R_PAUSE_MENU_MODE = 1;
@@ -1486,7 +1528,8 @@ void Play_Draw(PlayState* play) {
             R_PAUSE_MENU_MODE = 0;
         }
 
-        if (R_PAUSE_MENU_MODE == 3) {
+        // SOH [ZeldaOnline] A live pause menu draws over the running world, not over a captured frame
+        if ((R_PAUSE_MENU_MODE == 3) && !gZeldaOnlineLivePause) {
             Gfx* gfxP = POLY_OPA_DISP;
 
             // SOH [Port] Draw game framebuffer using our custom handling
@@ -1605,7 +1648,10 @@ void Play_Draw(PlayState* play) {
             DebugDisplay_DrawObjects(play);
         }
 
-        if ((R_PAUSE_MENU_MODE == 1) || (gTrnsnUnkState == 1)) {
+        if (gZeldaOnlineLivePause && (R_PAUSE_MENU_MODE == 1)) {
+            // SOH [ZeldaOnline] Nothing to capture for a live pause menu: report the background as ready
+            R_PAUSE_MENU_MODE = 3;
+        } else if ((R_PAUSE_MENU_MODE == 1) || (gTrnsnUnkState == 1)) {
             Gfx* gfxP = OVERLAY_DISP;
 
             // Copy the frame buffer contents at this point in the display list to the zbuffer
