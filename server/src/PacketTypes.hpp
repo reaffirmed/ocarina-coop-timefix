@@ -65,7 +65,10 @@ namespace ZeldaOnline {
         CLIENT_PACKET_SET_TIME_FLOWS = 44,
         // warp vote before a scene cutscene transition: u1 action (STORY_WARP_*: 0 withdraw, 1 this player's transition
         // is on hold, 2 ready, 3 go without waiting), u2 entrance, u2 cutscene index (both 0 unless action 1)
-        CLIENT_PACKET_STORY_WARP_VOTE = 45
+        CLIENT_PACKET_STORY_WARP_VOTE = 45,
+        // proximity voice chat: u1 flags (1 = end of a talk spurt), u2 sequence of the first frame, u1 frame count, then
+        // per frame u1 length + Opus bytes (48 kHz mono, 20 ms); relayed to the other players in the sender's scene
+        CLIENT_PACKET_VOICE = 46
 
     };
 
@@ -127,7 +130,9 @@ namespace ZeldaOnline {
         // who started it, u1 count, then u1 length + name of each member not ready yet
         SERVER_PACKET_STORY_WARP_STATUS = 44,
         // to a member holding a warp: everybody is ready (or nobody else is there), run the transition now
-        SERVER_PACKET_STORY_WARP_GO = 45
+        SERVER_PACKET_STORY_WARP_GO = 45,
+        // u2 sender network id, then the CLIENT_PACKET_VOICE body
+        SERVER_PACKET_VOICE = 46
     };
 
     static const int PLAYER_PUPPET_ROOM = -1;

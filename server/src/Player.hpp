@@ -1,6 +1,8 @@
 #ifndef PLAYERH
 #define PLAYERH
 
+#include <algorithm>
+#include <chrono>
 #include <memory>
 #include <unordered_set>
 
@@ -86,6 +88,25 @@ namespace ZeldaOnline
 				m_connection->SendPacket(payload);
 		}
 
+		// Proximity voice chat: a token bucket of bytes, so one client can't flood its scene. True when `bytes` more
+		// may be relayed now.
+		bool TakeVoiceBudget(unsigned int bytes) {
+			static const double RATE = 12000.0;  // bytes per second (Opus at 24 kbit/s is about 3500)
+			static const double BURST = 24000.0;
+			auto now = std::chrono::steady_clock::now();
+			if (!m_voiceStarted) {
+				m_voiceStarted = true;
+				m_voiceTokens = BURST;
+			} else {
+				m_voiceTokens = std::min(BURST, m_voiceTokens + RATE * std::chrono::duration<double>(now - m_voiceLast).count());
+			}
+			m_voiceLast = now;
+			if (m_voiceTokens < bytes)
+				return false;
+			m_voiceTokens -= bytes;
+			return true;
+		}
+
 		void MarkForRemoval() {
 			m_pendingRemoval = true;
 		}
@@ -168,6 +189,9 @@ namespace ZeldaOnline
 		}
 
 	private:
+		bool m_voiceStarted = false;
+		double m_voiceTokens = 0.0;
+		std::chrono::steady_clock::time_point m_voiceLast;
 		unsigned int m_partyHash = 0;
 		bool m_paused = false;
 		// whether vanilla time passes in this player's scene; clients that never report it keep the clock running

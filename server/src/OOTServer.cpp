@@ -1957,6 +1957,47 @@ namespace ZeldaOnline
 		}
 		break;
 
+		case CLIENT_PACKET_VOICE:
+		{
+			// relayed, never looked into beyond its framing: to the other players in the sender's scene (a scene of a
+			// party only holds that party's members)
+			Scene* scene = player->CurrentScene();
+			const unsigned int len = data.BytesLeft();
+			if (scene == nullptr || len < 4 || len > 3200 || !player->TakeVoiceBudget(len))
+				break;
+
+			ByteStream body = data.Read(len);
+			const unsigned char* b = reinterpret_cast<const unsigned char*>(body.Text());
+			unsigned int count = b[3], pos = 4;
+			bool ok = count <= 12 && (count > 0 || (b[0] & 1));
+			for (unsigned int i = 0; ok && i < count; i++)
+			{
+				if (pos >= len) { ok = false; break; }
+				unsigned int n = b[pos++];
+				if (n == 0 || pos + n > len) { ok = false; break; }
+				pos += n;
+			}
+			if (!ok || pos != len)
+				break;
+
+			ByteStream packet = newPacket(SERVER_PACKET_VOICE);
+			packet << PackedUInt2(player->NetworkID());
+			packet.Write(body);
+			for (auto& entry : scene->Players())
+			{
+				Player* other = entry.second;
+				if (other == player)
+					continue;
+				// voice is the first thing to give way when a client can't keep up: a late voice is no use anyway, and
+				// the game's own packets must not wait behind it. The receiver sees a gap in the sequence.
+				ClientConnection* conn = other->GetConnection();
+				if (conn != nullptr && conn->SendBacklog() > 32 * 1024)
+					continue;
+				other->SendPacket(packet);
+			}
+		}
+		break;
+
 		case CLIENT_PACKET_UPDATE_PARTY_SETTINGS:
 		{
 			auto& party = player->GetParty();
