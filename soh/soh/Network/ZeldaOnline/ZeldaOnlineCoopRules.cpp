@@ -1200,8 +1200,8 @@ void ZeldaOnlineClient::CoopDrawOverlay(GraphicsContext* gfxCtx) {
     const Color_RGBA8 yellow = { 255, 230, 110, 255 };
     const Color_RGBA8 red = { 255, 110, 110, 255 };
     const Color_RGBA8 panel = { 0, 0, 0, 170 };
-    const float small = 0.45f;
-    const s16 lineH = (s16)(16.0f * small);
+    const float textScale = 0.45f; // not "small": a macro in the Windows headers
+    const s16 lineH = (s16)(16.0f * textScale);
 
     // this player is down
     if (m_coopIsDowned) {
@@ -1210,12 +1210,12 @@ void ZeldaOnlineClient::CoopDrawOverlay(GraphicsContext* gfxCtx) {
             Wrap("You are down. A teammate can revive you: " + std::to_string(seconds) + "s left. Hold B to give up.");
         const s16 h = (s16)(LineCount(text) * lineH + 8);
         FillRect(gfxCtx, 8, 136, 304, h, panel);
-        DrawScreenText(gfxCtx, text.c_str(), 14, 140, red, small);
+        DrawScreenText(gfxCtx, text.c_str(), 14, 140, red, textScale);
     } else if (!m_coopHint.empty()) {
         std::string text = Wrap(m_coopHint);
         const s16 h = (s16)(LineCount(text) * lineH + 8);
         FillRect(gfxCtx, 8, 136, 304, h, panel);
-        DrawScreenText(gfxCtx, text.c_str(), 14, 140, yellow, small);
+        DrawScreenText(gfxCtx, text.c_str(), 14, 140, yellow, textScale);
     }
 
     // the respawn cooldown after a Game Over
@@ -1232,7 +1232,7 @@ void ZeldaOnlineClient::CoopDrawOverlay(GraphicsContext* gfxCtx) {
         const s16 h = (s16)(LineCount(text) * lineH + 8);
         const s16 y = (s16)(118 - h);
         FillRect(gfxCtx, 8, y, 304, h, { 0, 0, 0, (u8)(alpha * 2 / 3) });
-        DrawScreenText(gfxCtx, text.c_str(), 14, (s16)(y + 4), { 255, 255, 255, alpha }, small);
+        DrawScreenText(gfxCtx, text.c_str(), 14, (s16)(y + 4), { 255, 255, 255, alpha }, textScale);
     }
 
     // what a joining player received
@@ -1247,12 +1247,12 @@ void ZeldaOnlineClient::CoopDrawOverlay(GraphicsContext* gfxCtx) {
         const s16 h = (s16)(16 + rows.size() * rowH + 6);
         const s16 x = 196, y = 64, w = 118; // below the C buttons, above the minimap
         FillRect(gfxCtx, x, y, w, h, panel);
-        DrawScreenText(gfxCtx, "You got from the team:", x + 5, y + 4, yellow, small);
+        DrawScreenText(gfxCtx, "You got from the team:", x + 5, y + 4, yellow, textScale);
         for (size_t i = 0; i < rows.size(); i++) {
             std::string row = rows[i];
-            while (row.size() > 4 && TextWidth(row, small) > w - 10)
+            while (row.size() > 4 && TextWidth(row, textScale) > w - 10)
                 row = row.substr(0, row.size() - 4) + "...";
-            DrawScreenText(gfxCtx, row.c_str(), x + 5, (s16)(y + 16 + i * rowH), white, small);
+            DrawScreenText(gfxCtx, row.c_str(), x + 5, (s16)(y + 16 + i * rowH), white, textScale);
         }
     }
 
@@ -1291,15 +1291,15 @@ void ZeldaOnlineClient::CoopDrawOverlay(GraphicsContext* gfxCtx) {
                 rowY += rowH;
             }
             if (rows.size() == 1)
-                DrawScreenText(gfxCtx, "No teammates online yet.", x + 18, (s16)(rowY - rowH * 2 + 2), dim, small);
+                DrawScreenText(gfxCtx, "No teammates online yet.", x + 18, (s16)(rowY - rowH * 2 + 2), dim, textScale);
             if (!status.empty()) {
                 rowY += 4;
                 for (const std::string& s : status) {
-                    DrawScreenText(gfxCtx, s.c_str(), x + 18, rowY, red, small);
+                    DrawScreenText(gfxCtx, s.c_str(), x + 18, rowY, red, textScale);
                     rowY += 10;
                 }
             }
-            DrawScreenText(gfxCtx, "A: choose   B or L: back", x + 8, (s16)(y + h - 13), dim, small);
+            DrawScreenText(gfxCtx, "A: choose   B or L: back", x + 8, (s16)(y + h - 13), dim, textScale);
         }
     }
 }

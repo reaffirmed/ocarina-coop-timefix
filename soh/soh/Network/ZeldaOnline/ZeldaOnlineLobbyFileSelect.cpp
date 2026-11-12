@@ -398,7 +398,7 @@ std::vector<Row> BuildRows() {
                 const SaveFileMetaInfo& meta = SaveManager::Instance->fileMetaInfo[i];
                 std::string label = "File " + std::to_string(i + 1);
                 label += meta.valid ? "  (" + std::to_string(meta.healthCapacity / 16) + " hearts)" : "  (empty)";
-                rows.push_back({ label, "", meta.valid, ROW_COPY_SLOT + i });
+                rows.push_back({ label, "", meta.valid != 0, ROW_COPY_SLOT + i });
             }
             rows.push_back({ "Back", "", true, ROW_BACK });
             break;
