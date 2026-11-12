@@ -1,0 +1,184 @@
+#ifndef ZELDAONLINELOBBYH
+#define ZELDAONLINELOBBYH
+// Co-op Lobby: host or join a Story Co-op game from inside the game, and pick which team playthrough to continue.
+//
+// The lobby drives OOTSteamLink (tools/steamlink) in its --status-file mode: the helper runs hidden, starts OOTServer
+// and the Steam lobby (host) or the relay to a friend (join), and reports what it does through a text file. Once the
+// helper is ready the game connects to it, and ZeldaOnlineClient forms the party by itself: the host creates a Story
+// Co-op party with the playthrough's team code and invites everybody who connects, the others accept that invite.
+#include <ship/window/gui/GuiWindow.h>
+#include "PartySettings.hpp"
+#include <cstdint>
+#include <ctime>
+#include <string>
+#include <vector>
+
+namespace ZeldaOnline {
+
+// One team playthrough: the team code picks the server side team save (together with the host's nickname).
+struct CoopPlaythrough {
+    std::string name;
+    std::string code;
+    int64_t created = 0;
+    int64_t lastPlayed = 0;
+    int lastFile = -1;       // save file used last time (0 based), -1 unknown
+    std::string lastPlayers; // who played last time, for display only
+    std::string hostNick;    // the nickname it was hosted under: the team save is stored under it
+    PartySettings settings;  // the host's story settings for this playthrough (storyCode is `code`)
+};
+
+// Playthroughs this player hosted, plus the save file they used last with each friend they joined.
+class CoopPlaythroughList {
+  public:
+    std::vector<CoopPlaythrough> hosted;
+    struct Joined {
+        std::string host;
+        int lastFile = -1;
+        int64_t lastPlayed = 0;
+    };
+    std::vector<Joined> joined;
+
+    void Load();
+    void Save() const;
+    CoopPlaythrough* FindByCode(const std::string& code);
+    Joined& JoinedEntry(const std::string& host);
+    void SortByLastPlayed();
+};
+
+// The hidden OOTSteamLink process and its status file.
+class CoopLobbyHelper {
+  public:
+    struct Friend {
+        uint64_t lobby = 0;
+        std::string name;
+    };
+
+    enum class State { Idle, Starting, Picking, Ready, Failed, Stopped };
+
+    ~CoopLobbyHelper();
+
+    static std::string FindHelperExecutable();
+    static bool Supported();
+
+    bool Start(const std::vector<std::string>& args);
+    void Pick(uint64_t lobby);
+    void Stop(bool wait);
+    void Poll();
+    bool Running() const;
+
+    State state = State::Idle;
+    bool hosting = false;
+    int port = 0;
+    std::string steamName;
+    std::string hostName; // join: the friend who hosts
+    std::string error;
+    bool hostGone = false;
+    std::vector<Friend> friends;
+    std::vector<std::string> peers; // host: friends connected through Steam
+
+  private:
+    std::string m_statusPath;
+    size_t m_readOffset = 0;
+    std::string m_partialLine;
+    std::vector<Friend> m_friendsBuilding;
+    int m_friendsExpected = -1;
+#ifdef _WIN32
+    void* m_process = nullptr;
+#else
+    int m_pid = 0;
+#endif
+    void HandleLine(const std::string& line);
+};
+
+class CoopLobbyWindow : public Ship::GuiWindow {
+  public:
+    using GuiWindow::GuiWindow;
+    inline static CoopLobbyWindow* Instance;
+
+    void InitElement() override;
+    void DrawElement() override;
+    void UpdateElement() override {
+    }
+    void Draw() override;
+
+    void Open();
+    // the client lost or ended its lobby connection
+    void OnClientLeftLobby();
+    // stops hosting or joining (the server saves the team progress)
+    void StopAll();
+
+    // ---- used by the Co-op screen of the file select (ZeldaOnlineLobbyFileSelect.cpp) as well as by this window
+    enum class Status { Idle, Starting, Picking, Connecting, FormingParty, Ready, HostGone, Failed, Stopping };
+    Status SessionStatus() const;
+    bool SessionActive() const; // hosting or joining, from starting up until stopped
+    bool IsHosting() const {
+        return !m_activeCode.empty();
+    }
+    const std::string& ConnectedTo() const {
+        return m_connectedTo;
+    }
+    const std::string& Error() const {
+        return m_helper.error;
+    }
+    const std::vector<CoopLobbyHelper::Friend>& HostingFriends() const {
+        return m_helper.friends;
+    }
+    CoopPlaythroughList& Playthroughs() {
+        EnsureListLoaded();
+        return m_list;
+    }
+    CoopPlaythrough* ActivePlaythrough() {
+        return m_list.FindByCode(m_activeCode);
+    }
+    std::vector<std::string> PartyNames() const;
+    int LastFileForSession();          // the save file used for this playthrough / with this friend, -1 unknown
+    static std::string SteamProblem(); // empty when hosting and joining over Steam can work here
+    int NewPlaythrough();              // adds one (settings from last time) and returns its index
+    void StartHosting(int index);
+    void StartJoining();
+    void JoinFriend(const CoopLobbyHelper::Friend& f) {
+        m_helper.Pick(f.lobby);
+    }
+    void ClearFinished(); // after a failure or a stop: back to idle
+    void OnStorySettingsChanged(CoopPlaythrough& p);
+
+  private:
+    enum class Page { Home, HostPick, Session };
+    Page m_page = Page::Home;
+    CoopLobbyHelper m_helper;
+    CoopPlaythroughList m_list;
+    bool m_listLoaded = false;
+    int m_selected = -1;
+    char m_newName[48] = "";
+    char m_renameBuffer[48] = "";
+    int m_renaming = -1;
+    int m_confirmForget = -1;
+    char m_nameBuffer[33] = "";
+    std::string m_activeCode;  // host: the playthrough being played
+    std::string m_connectedTo; // join: the friend's name
+    bool m_clientStarted = false;
+    bool m_autoShown = false; // shown by the title screen check, hidden again when the game starts
+    bool m_wasInGame = false;
+    bool m_seenTitle = false; // the title screen check already ran for this visit
+    bool m_stopping = false;
+    double m_lastPoll = 0.0;
+    int m_lastRecordedFile = -2;
+    std::string m_message;
+
+    void EnsureListLoaded();
+    void DrawHome();
+    void DrawHostPick();
+    void DrawSession();
+    void DrawJoinPick();
+    void DrawNicknameField();
+    void DrawPlaythroughRow(int index);
+    bool DrawStorySettings(PartySettings& settings);
+    bool m_showSettings = false;
+
+    void ConnectClient();
+    void RecordSaveFile();
+    void UpdateAutoShow();
+};
+
+} // namespace ZeldaOnline
+#endif
