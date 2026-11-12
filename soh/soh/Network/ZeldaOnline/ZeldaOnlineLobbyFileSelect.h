@@ -17,6 +17,8 @@ void FileChoose_RotateToCoop(struct GameState* gameState);
 void FileChoose_StartCoopMenu(struct GameState* gameState);
 void FileChoose_UpdateCoopMenu(struct GameState* gameState);
 void FileChoose_DrawCoopMenu(struct FileChooseContext* fileChooseContext);
+// 1 when the full screen (modern) lobby is chosen: the file select window is not drawn behind it
+int CoopLobby_ModernLayout(void);
 #ifdef __cplusplus
 };
 #endif

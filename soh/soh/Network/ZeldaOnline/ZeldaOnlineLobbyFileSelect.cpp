@@ -9,6 +9,9 @@
 #include "ZeldaOnlineLobbyFileSelect.h"
 #include "ZeldaOnlineLobby.hpp"
 
+#include <ship/Context.h>
+#include <ship/window/Window.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -26,11 +29,17 @@
 #include "soh/ShipUtils.h"
 #include "soh/cvar_prefixes.h"
 #include "soh_assets.h"
+#include "textures/title_static/title_static.h"
+#include "textures/icon_item_24_static/icon_item_24_static.h"
+#include "soh/SaveManager.h"
+#include "soh/frame_interpolation.h"
 
 extern "C" {
 void FileChoose_UpdateStickDirectionPromptAnim(GameState* thisx);
 void FileChoose_DrawTextRec(GraphicsContext* gfxCtx, s32 r, s32 g, s32 b, s32 a, f32 x, f32 y, f32 z, s32 s, s32 t,
                             f32 dx, f32 dy);
+void SpriteLoad(FileChooseContext* thisx, Sprite* sprite);
+void SpriteDraw(FileChooseContext* thisx, Sprite* sprite, int left, int top, int width, int height);
 }
 
 using namespace ZeldaOnline;
@@ -62,13 +71,10 @@ enum RowId {
     ROW_CHOOSE_FILE,
     ROW_SETTINGS,
     ROW_STOP,
+    ROW_LAYOUT,
     ROW_FRIEND = 2000, // + index
 };
 
-constexpr int kRowsOnScreen = 6;
-constexpr int kListX = 72;
-constexpr int kListY = 82;
-constexpr int kRowStep = 16;
 constexpr float kTextScale = 0.8f;
 
 struct CoopScreen {
@@ -81,6 +87,14 @@ struct CoopScreen {
     int arrowAnim = 0;
 };
 CoopScreen sScreen;
+
+constexpr const char* kModernCVar = "gZeldaOnline.Lobby.ModernLayout";
+
+int RowsOnScreen() {
+    if (CVarGetInteger(kModernCVar, 0) == 0)
+        return 6;
+    return sScreen.page == Page::Settings ? 8 : 5;
+}
 
 CoopLobbyWindow* Lobby() {
     return CoopLobbyWindow::Instance;
@@ -276,6 +290,7 @@ std::vector<Row> BuildRows() {
             const bool steam = CoopLobbyWindow::SteamProblem().empty();
             rows.push_back({ "Host a game", "", steam, ROW_HOST });
             rows.push_back({ "Join a friend", "", steam, ROW_JOIN });
+            rows.push_back({ "Layout", CVarGetInteger(kModernCVar, 0) ? "Modern" : "Classic", true, ROW_LAYOUT });
             rows.push_back({ "Back", "", true, ROW_BACK });
             break;
         }
@@ -330,7 +345,7 @@ std::vector<Row> BuildRows() {
 void GoTo(Page page, int cursor = 0) {
     sScreen.page = page;
     sScreen.cursor = cursor;
-    sScreen.offset = std::max(0, cursor - kRowsOnScreen + 1);
+    sScreen.offset = std::max(0, cursor - RowsOnScreen() + 1);
 }
 
 void ExitToMain(FileChooseContext* ctx) {
@@ -339,6 +354,11 @@ void ExitToMain(FileChooseContext* ctx) {
 
 void ChangeOption(int id, int dir) {
     CoopLobbyWindow* lobby = Lobby();
+    if (id == ROW_LAYOUT) {
+        CVarSetInteger(kModernCVar, CVarGetInteger(kModernCVar, 0) ? 0 : 1);
+        Ship::Context::GetRawInstance()->GetWindow()->GetGui()->SaveConsoleVariablesNextFrame();
+        return;
+    }
     auto& list = lobby->Playthroughs().hosted;
     if (sScreen.settingsIndex < 0 || sScreen.settingsIndex >= (int)list.size())
         return;
@@ -588,8 +608,8 @@ extern "C" void FileChoose_UpdateCoopMenu(GameState* gameState) {
     }
     if (sScreen.cursor < sScreen.offset)
         sScreen.offset = sScreen.cursor;
-    if (sScreen.cursor >= sScreen.offset + kRowsOnScreen)
-        sScreen.offset = sScreen.cursor - kRowsOnScreen + 1;
+    if (sScreen.cursor >= sScreen.offset + RowsOnScreen())
+        sScreen.offset = sScreen.cursor - RowsOnScreen() + 1;
 
     if (!rows.empty() && !rows[sScreen.cursor].value.empty() &&
         (std::abs(ctx->stickRelX) > 30 || (dpad && CHECK_BTN_ANY(input->press.button, BTN_DLEFT | BTN_DRIGHT)))) {
@@ -610,9 +630,13 @@ extern "C" void FileChoose_UpdateCoopMenu(GameState* gameState) {
     }
 }
 
-extern "C" void FileChoose_DrawCoopMenu(FileChooseContext* ctx) {
-    if (Lobby() == nullptr)
-        return;
+// The classic layout: the list on the face of the file select window (the face of the Options menu).
+
+static constexpr int kListX = 72;
+static constexpr int kListY = 82;
+static constexpr int kRowStep = 16;
+
+static void DrawClassic(FileChooseContext* ctx) {
     OPEN_DISPS(ctx->state.gfxCtx);
 
     std::vector<Row> rows = BuildRows();
@@ -634,7 +658,7 @@ extern "C" void FileChoose_DrawCoopMenu(FileChooseContext* ctx) {
         y += 4;
 
     const int first = sScreen.offset;
-    const int visible = std::max(1, kRowsOnScreen - (int)((y - kListY + kRowStep - 1) / kRowStep));
+    const int visible = std::max(1, RowsOnScreen() - (int)((y - kListY + kRowStep - 1) / kRowStep));
     const int last = std::min((int)rows.size(), first + visible);
     const int listTop = y;
     for (int i = first; i < last; i++) {
@@ -702,7 +726,7 @@ extern "C" void FileChoose_DrawCoopMenu(FileChooseContext* ctx) {
     // the hint under the list
     if (!below.empty()) {
         const bool problem = sScreen.page == Page::Home && !CoopLobbyWindow::SteamProblem().empty();
-        int by = std::max(y + 4, kListY + kRowsOnScreen * kRowStep - 6);
+        int by = std::max(y + 4, kListY + RowsOnScreen() * kRowStep - 6);
         for (const auto& line : Wrap(below, 176.0f, 0.7f)) {
             DrawText(ctx, line, kListX, by, problem ? 255 : 170, problem ? 120 : 170, problem ? 120 : 170, 0.7f);
             by += 12;
@@ -710,4 +734,386 @@ extern "C" void FileChoose_DrawCoopMenu(FileChooseContext* ctx) {
     }
 
     CLOSE_DISPS(ctx->state.gfxCtx);
+}
+
+// ---------------------------------------------------------------------------------------------- drawing
+//
+// A full screen lobby over the file select's sky (320 x 240 screen units):
+//   top:          "Co-op" and the page name, a line under them, the status under the line
+//   left column:  the choices as file select buttons
+//   bottom left:  a card with the playthrough (or friend) and its progress icons
+//   right column: the party, "You" first
+//   middle:       left free for Link
+// The story settings use one wide panel instead of the columns.
+
+static SaveFileMetaInfo* Save_GetSaveMetaInfo(int file) {
+    return &SaveManager::Instance->fileMetaInfo[file];
+}
+
+static constexpr int kLeftX = 20;
+static constexpr int kLeftW = 118;
+static constexpr int kTopY = 50;
+static constexpr int kButtonH = 16;
+static constexpr int kButtonStep = 19;
+static constexpr int kCardY = 146;
+static constexpr int kCardH = 54;
+static constexpr int kRightX = 194;
+static constexpr int kRightW = 108;
+static constexpr int kWideX = 44;
+static constexpr int kWideW = 232;
+static constexpr int kWideStep = 17;
+
+static u8 A(int a) {
+    return (u8)std::clamp(a * sScreen.alpha / 255, 0, 255);
+}
+
+static void Rect(FileChooseContext* ctx, int x, int y, int w, int h, u8 r, u8 g, u8 b, u8 a) {
+    OPEN_DISPS(ctx->state.gfxCtx);
+    gDPPipeSync(POLY_OPA_DISP++);
+    gDPSetCycleType(POLY_OPA_DISP++, G_CYC_1CYCLE);
+    gDPSetRenderMode(POLY_OPA_DISP++, G_RM_XLU_SURF, G_RM_XLU_SURF2);
+    gDPSetCombineMode(POLY_OPA_DISP++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
+    gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, r, g, b, A(a));
+    gDPFillRectangle(POLY_OPA_DISP++, x, y, x + w, y + h);
+    CLOSE_DISPS(ctx->state.gfxCtx);
+}
+
+// a panel: dark glass with a thin blue edge
+static void Panel(FileChooseContext* ctx, int x, int y, int w, int h) {
+    Rect(ctx, x, y, w, h, 0, 10, 40, 150);
+    Rect(ctx, x, y, w, 1, 100, 150, 255, 200);
+    Rect(ctx, x, y + h - 1, w, 1, 100, 150, 255, 120);
+    Rect(ctx, x, y, 1, h, 100, 150, 255, 120);
+    Rect(ctx, x + w - 1, y, 1, h, 100, 150, 255, 120);
+}
+
+// a button made from the file select's name box, stretched
+static void Button(FileChooseContext* ctx, int x, int y, int w, bool selected, bool enabled) {
+    OPEN_DISPS(ctx->state.gfxCtx);
+    Gfx_SetupDL_39Opa(ctx->state.gfxCtx);
+    gDPSetRenderMode(POLY_OPA_DISP++, G_RM_XLU_SURF, G_RM_XLU_SURF2);
+    gDPSetCombineMode(POLY_OPA_DISP++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+    if (!enabled)
+        gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 100, 100, 100, A(200));
+    else if (selected)
+        gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 140, 190, 255, A(255));
+    else
+        gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 100, 150, 255, A(200));
+    gDPLoadTextureBlock(POLY_OPA_DISP++, gFileSelNameBoxTex, G_IM_FMT_IA, G_IM_SIZ_16b, 108, 16, 0,
+                        G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD,
+                        G_TX_NOLOD);
+    // from texel 8: the name box has a mark on its left end
+    gSPWideTextureRectangle(POLY_OPA_DISP++, x << 2, y << 2, (x + w) << 2, (y + kButtonH) << 2, G_TX_RENDERTILE, 8 << 5,
+                            0, (1 << 10) * 100 / w, 1 << 10);
+    CLOSE_DISPS(ctx->state.gfxCtx);
+}
+
+static void Arrow(FileChooseContext* ctx, float x, int y, float dir) {
+    OPEN_DISPS(ctx->state.gfxCtx);
+    Gfx_SetupDL_39Opa(ctx->state.gfxCtx);
+    gDPSetCombineMode(POLY_OPA_DISP++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+    gDPLoadTextureBlock(POLY_OPA_DISP++, gArrowCursorTex, G_IM_FMT_IA, G_IM_SIZ_8b, 16, 24, 0,
+                        G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMIRROR | G_TX_WRAP, 4, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+    const auto& prompt = dir < 0 ? ctx->stickLeftPrompt : ctx->stickRightPrompt;
+    FileChoose_DrawTextRec(ctx->state.gfxCtx, prompt.arrowColorR, prompt.arrowColorG, prompt.arrowColorB, sScreen.alpha,
+                           x, (f32)y, 0.42f, 0, 0, dir, 1.0f);
+    CLOSE_DISPS(ctx->state.gfxCtx);
+}
+
+static void TextAlpha(FileChooseContext* ctx, const std::string& text, int x, int y, u8 r, u8 g, u8 b, float scale) {
+    OPEN_DISPS(ctx->state.gfxCtx);
+    gDPPipeSync(POLY_OPA_DISP++);
+    gDPSetCombineLERP(POLY_OPA_DISP++, 0, 0, 0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, PRIMITIVE, TEXEL0, 0,
+                      PRIMITIVE, 0);
+    CLOSE_DISPS(ctx->state.gfxCtx);
+    DrawText(ctx, text, x, y, r, g, b, scale);
+}
+
+// Cuts text to fit `width`, with "..." at the end.
+static std::string Fit(const std::string& text, float width, float scale) {
+    if (TextWidth(text, scale) <= width)
+        return text;
+    std::string out = text;
+    while (!out.empty() && TextWidth(out + "...", scale) > width)
+        out.pop_back();
+    return out + "...";
+}
+
+static void Icon(FileChooseContext* ctx, const char* tex, int x, int y, int size, bool have) {
+    Sprite sprite = { (void*)tex, 24, 24, G_IM_FMT_RGBA, G_IM_SIZ_32b, 0 };
+    OPEN_DISPS(ctx->state.gfxCtx);
+    gDPPipeSync(POLY_OPA_DISP++);
+    gDPSetRenderMode(POLY_OPA_DISP++, G_RM_XLU_SURF, G_RM_XLU_SURF2);
+    gDPSetCombineMode(POLY_OPA_DISP++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+    if (have)
+        gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 255, 255, 255, A(255));
+    else
+        gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 40, 40, 60, A(160));
+    CLOSE_DISPS(ctx->state.gfxCtx);
+    SpriteLoad(ctx, &sprite);
+    SpriteDraw(ctx, &sprite, x, y, size, size);
+}
+
+// The spiritual stones and medallions of a save file, and its hearts.
+static void ProgressIcons(FileChooseContext* ctx, int file, int x, int y) {
+    if (file < 0 || file > 2)
+        return;
+    const SaveFileMetaInfo* meta = Save_GetSaveMetaInfo(file);
+    if (meta == nullptr || !meta->valid)
+        return;
+    static const char* const kStones[] = { dgQuestIconKokiriEmeraldTex, dgQuestIconGoronRubyTex,
+                                           dgQuestIconZoraSapphireTex };
+    static const char* const kMedallions[] = { dgQuestIconMedallionForestTex, dgQuestIconMedallionFireTex,
+                                               dgQuestIconMedallionWaterTex,  dgQuestIconMedallionSpiritTex,
+                                               dgQuestIconMedallionShadowTex, dgQuestIconMedallionLightTex };
+    for (int i = 0; i < 3; i++)
+        Icon(ctx, kStones[i], x + i * 11, y, 11, (meta->questItems >> (QUEST_KOKIRI_EMERALD + i)) & 1);
+    for (int i = 0; i < 6; i++)
+        Icon(ctx, kMedallions[i], x + 36 + i * 11, y, 11, (meta->questItems >> (QUEST_MEDALLION_FOREST + i)) & 1);
+}
+
+static int HeartsOf(int file) {
+    if (file < 0 || file > 2)
+        return 0;
+    const SaveFileMetaInfo* meta = Save_GetSaveMetaInfo(file);
+    return (meta != nullptr && meta->valid) ? meta->healthCapacity / 16 : 0;
+}
+
+// The card at the bottom left: what this page is about.
+static void DrawCard(FileChooseContext* ctx, const std::vector<Row>& rows, const std::string& hint) {
+    CoopLobbyWindow* lobby = Lobby();
+    std::string title, line;
+    int file = -1;
+    bool hintIsProblem = false;
+    if (sScreen.page == Page::HostPick && sScreen.cursor < (int)rows.size() &&
+        rows[sScreen.cursor].id >= ROW_PLAYTHROUGH && rows[sScreen.cursor].id < ROW_NEW) {
+        const CoopPlaythrough& p = lobby->Playthroughs().hosted[rows[sScreen.cursor].id - ROW_PLAYTHROUGH];
+        title = p.name;
+        line = p.lastPlayed > 0 ? "Played " + FormatDate(p.lastPlayed) : "Not played yet";
+        file = p.lastFile;
+    } else if (sScreen.page == Page::Session && lobby->IsHosting() && lobby->ActivePlaythrough() != nullptr) {
+        title = lobby->ActivePlaythrough()->name;
+        line = hint;
+        file = lobby->LastFileForSession();
+    } else if (sScreen.page == Page::Session && !lobby->ConnectedTo().empty()) {
+        title = lobby->ConnectedTo() + "'s game";
+        line = hint;
+        file = lobby->LastFileForSession();
+    } else {
+        title = sScreen.page == Page::HostPick  ? "New playthrough"
+                : sScreen.page == Page::Session ? "Join a friend"
+                                                : "Story Co-op";
+        line = hint;
+        hintIsProblem = sScreen.page == Page::Home && !CoopLobbyWindow::SteamProblem().empty();
+    }
+    if (file >= 0 && file <= 2 && Save_GetSaveMetaInfo(file)->valid && sScreen.page == Page::HostPick)
+        line += ", File " + std::to_string(file + 1);
+
+    Panel(ctx, kLeftX, kCardY, kLeftW, kCardH);
+    Rect(ctx, kLeftX + 1, kCardY + 1, kLeftW - 2, 15, 60, 100, 200, 90);
+    TextAlpha(ctx, Fit(title, kLeftW - 12, 0.75f), kLeftX + 6, kCardY + 3, 255, 255, 255, 0.75f);
+    int y = kCardY + 20;
+    const bool icons = file >= 0 && file <= 2 && Save_GetSaveMetaInfo(file)->valid;
+    const int maxLines = icons ? 1 : 3;
+    int n = 0;
+    for (const auto& l : Wrap(line, kLeftW - 12, 0.62f)) {
+        if (n++ >= maxLines)
+            break;
+        TextAlpha(ctx, l, kLeftX + 6, y, hintIsProblem ? 255 : 200, hintIsProblem ? 130 : 210,
+                  hintIsProblem ? 130 : 230, 0.62f);
+        y += 11;
+    }
+    if (icons) {
+        ProgressIcons(ctx, file, kLeftX + 6, kCardY + kCardH - 16);
+        const int hearts = HeartsOf(file);
+        if (hearts > 0) {
+            Icon(ctx, dgQuestIconHeartContainerTex, kLeftX + kLeftW - 30, kCardY + kCardH - 16, 11, true);
+            TextAlpha(ctx, std::to_string(hearts), kLeftX + kLeftW - 18, kCardY + kCardH - 15, 255, 255, 255, 0.62f);
+        }
+    }
+}
+
+// The party on the right: you first, then everybody in the party.
+static void DrawParty(FileChooseContext* ctx) {
+    CoopLobbyWindow* lobby = Lobby();
+    Panel(ctx, kRightX, kTopY, kRightW, kCardY + kCardH - kTopY);
+    Rect(ctx, kRightX + 1, kTopY + 1, kRightW - 2, 15, 60, 100, 200, 90);
+    TextAlpha(ctx, "Party", kRightX + 6, kTopY + 3, 255, 255, 255, 0.75f);
+
+    const auto status = lobby->SessionStatus();
+    // picking a friend to join is not a party yet
+    const bool inSession = status != CoopLobbyWindow::Status::Idle && status != CoopLobbyWindow::Status::Failed &&
+                           status != CoopLobbyWindow::Status::Picking;
+    std::vector<std::string> others = lobby->PartyNames();
+    if (inSession) {
+        char count[16];
+        std::snprintf(count, sizeof(count), "%d", (int)others.size() + 1);
+        TextAlpha(ctx, count, kRightX + kRightW - 8 - (int)TextWidth(count, 0.75f), kTopY + 3, 255, 255, 120, 0.75f);
+    }
+
+    int y = kTopY + 22;
+    const std::string me = CVarGetString("gZeldaOnline.Nickname", "Player");
+    // "You" tag
+    Rect(ctx, kRightX + 5, y - 1, 22, 11, 240, 200, 60, 230);
+    TextAlpha(ctx, "", 0, 0, 0, 0, 0, 0.6f); // sets the text combiner
+    Interface_DrawTextLine(ctx->state.gfxCtx, (char*)"You", kRightX + 8, y, 40, 30, 0, sScreen.alpha, 0.6f, false);
+    TextAlpha(ctx, Fit(me, kRightW - 40, 0.7f), kRightX + 31, y, 255, 230, 120, 0.7f);
+    if (inSession && lobby->IsHosting())
+        TextAlpha(ctx, "Host", kRightX + kRightW - 6 - (int)TextWidth("Host", 0.55f), y + 10, 150, 200, 255, 0.55f);
+    y += 22;
+
+    if (!inSession) {
+        for (const auto& l : Wrap("Host a game or join a friend to fill the party.", kRightW - 12, 0.6f)) {
+            TextAlpha(ctx, l, kRightX + 6, y, 170, 180, 200, 0.6f);
+            y += 11;
+        }
+        return;
+    }
+    for (const auto& name : others) {
+        if (y > kCardY + kCardH - 14)
+            break;
+        Rect(ctx, kRightX + 5, y - 2, kRightW - 10, 14, 100, 150, 255, 50);
+        TextAlpha(ctx, Fit(name, kRightW - 20, 0.7f), kRightX + 10, y, 255, 255, 255, 0.7f);
+        y += 17;
+    }
+    if (others.empty()) {
+        const char* waiting = lobby->IsHosting() ? "Waiting for friends..." : "Joining...";
+        TextAlpha(ctx, waiting, kRightX + 10, y, 170, 180, 200, 0.62f);
+    }
+}
+
+static void DrawRowsLeft(FileChooseContext* ctx, const std::vector<Row>& rows) {
+    const int first = sScreen.offset;
+    const int last = std::min((int)rows.size(), first + RowsOnScreen());
+    int y = kTopY;
+    for (int i = first; i < last; i++) {
+        const Row& row = rows[i];
+        const bool selected = i == sScreen.cursor;
+        Button(ctx, kLeftX, y, kLeftW, selected, row.enabled);
+        const u8 tb = selected ? 80 : 255;
+        TextAlpha(ctx, Fit(row.label, kLeftW - 16, 0.75f), kLeftX + 10, y + 3, row.enabled ? 255 : 150,
+                  row.enabled ? 255 : 150, row.enabled ? tb : 150, 0.75f);
+        if (!row.value.empty()) {
+            const int vx = kLeftX + kLeftW - 14 - (int)TextWidth(row.value, 0.7f);
+            TextAlpha(ctx, row.value, vx, y + 3, 255, 255, tb, 0.7f);
+            if (selected) {
+                Arrow(ctx, vx - 7, y + 4, -1.0f);
+                Arrow(ctx, kLeftX + kLeftW - 9, y + 4, 1.0f);
+            }
+        }
+        if (selected)
+            Arrow(ctx, kLeftX - 6, y + 4, 1.0f);
+        y += kButtonStep;
+    }
+    if (first > 0 || last < (int)rows.size()) {
+        OPEN_DISPS(ctx->state.gfxCtx);
+        Gfx_SetupDL_39Opa(ctx->state.gfxCtx);
+        gDPSetCombineMode(POLY_OPA_DISP++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+        gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 255, 255, 255, sScreen.alpha);
+        const int ax = kLeftX + kLeftW / 2 - 4;
+        if (first > 0) {
+            const int ay = kTopY - 9 - sScreen.arrowAnim / 10;
+            gDPLoadTextureBlock(POLY_OPA_DISP++, gArrowUpTex, G_IM_FMT_IA, G_IM_SIZ_16b, 16, 16, 0,
+                                G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, G_TX_NOMASK,
+                                G_TX_NOLOD, G_TX_NOLOD);
+            gSPWideTextureRectangle(POLY_OPA_DISP++, ax << 2, ay << 2, (ax + 8) << 2, (ay + 8) << 2, G_TX_RENDERTILE, 0,
+                                    0, (1 << 11), (1 << 11));
+        }
+        if (last < (int)rows.size()) {
+            const int ay = y - 3 + sScreen.arrowAnim / 10;
+            gDPLoadTextureBlock(POLY_OPA_DISP++, gArrowDownTex, G_IM_FMT_IA, G_IM_SIZ_16b, 16, 16, 0,
+                                G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, G_TX_NOMASK,
+                                G_TX_NOLOD, G_TX_NOLOD);
+            gSPWideTextureRectangle(POLY_OPA_DISP++, ax << 2, ay << 2, (ax + 8) << 2, (ay + 8) << 2, G_TX_RENDERTILE, 0,
+                                    0, (1 << 11), (1 << 11));
+        }
+        CLOSE_DISPS(ctx->state.gfxCtx);
+    }
+}
+
+// The story settings: one wide panel, label on the left, value with arrows on the right.
+static void DrawSettings(FileChooseContext* ctx, const std::vector<Row>& rows, const std::string& hint) {
+    CoopLobbyWindow* lobby = Lobby();
+    auto& list = lobby->Playthroughs().hosted;
+    const int h = 22 + (int)rows.size() * kWideStep + 22;
+    Panel(ctx, kWideX, kTopY, kWideW, h);
+    Rect(ctx, kWideX + 1, kTopY + 1, kWideW - 2, 15, 60, 100, 200, 90);
+    std::string name = (sScreen.settingsIndex >= 0 && sScreen.settingsIndex < (int)list.size())
+                           ? list[sScreen.settingsIndex].name
+                           : "";
+    TextAlpha(ctx, Fit(name, kWideW - 12, 0.75f), kWideX + 6, kTopY + 3, 255, 255, 255, 0.75f);
+    int y = kTopY + 22;
+    for (int i = 0; i < (int)rows.size(); i++) {
+        const Row& row = rows[i];
+        const bool selected = i == sScreen.cursor;
+        if (selected)
+            Rect(ctx, kWideX + 4, y - 2, kWideW - 8, 14, 100, 150, 255, 70);
+        const bool action = row.value.empty();
+        const u8 tb = selected ? 80 : 255;
+        TextAlpha(ctx, row.label, kWideX + 16, y, 255, 255, action ? (selected ? 80 : 200) : tb, 0.75f);
+        if (selected)
+            Arrow(ctx, kWideX + 6, y + 4, 1.0f);
+        if (!action) {
+            const float w = TextWidth(row.value, 0.75f);
+            const int vx = kWideX + kWideW - 22 - (int)w;
+            TextAlpha(ctx, row.value, vx, y, 255, 255, tb, 0.75f);
+            if (selected) {
+                Arrow(ctx, vx - 7, y + 4, -1.0f);
+                Arrow(ctx, kWideX + kWideW - 16, y + 4, 1.0f);
+            }
+        }
+        y += kWideStep;
+    }
+    y += 4;
+    for (const auto& l : Wrap(hint, kWideW - 12, 0.62f)) {
+        TextAlpha(ctx, l, kWideX + 6, y, 170, 180, 200, 0.62f);
+        y += 11;
+    }
+}
+
+static void DrawModern(FileChooseContext* ctx) {
+    CoopLobbyWindow* lobby = Lobby();
+
+    std::vector<Row> rows = BuildRows();
+    std::vector<std::string> above;
+    std::string below;
+    Info(above, below, rows);
+
+    // header
+    TextAlpha(ctx, "Co-op", 20, 14, 255, 255, 255, 1.3f);
+    const float titleW = TextWidth("Co-op", 1.3f);
+    std::string page = Title();
+    if (page != "Co-op")
+        TextAlpha(ctx, Fit(page, 300 - 30 - titleW, 0.75f), 20 + (int)titleW + 10, 20, 150, 190, 255, 0.75f);
+    Rect(ctx, 16, 34, 288, 1, 100, 150, 255, 160);
+    if (!above.empty()) {
+        const bool error = lobby->SessionStatus() == CoopLobbyWindow::Status::Failed;
+        const auto lines = Wrap(above[0], 280, 0.65f);
+        if (!lines.empty()) {
+            const std::string& l = lines[0];
+            TextAlpha(ctx, l, 160 - (int)(TextWidth(l, 0.65f) / 2), 37, error ? 255 : 220, error ? 130 : 230,
+                      error ? 130 : 255, 0.65f);
+        }
+    }
+
+    if (sScreen.page == Page::Settings) {
+        DrawSettings(ctx, rows, below);
+        return;
+    }
+    DrawRowsLeft(ctx, rows);
+    DrawCard(ctx, rows, below);
+    DrawParty(ctx);
+}
+
+extern "C" int CoopLobby_ModernLayout(void) {
+    return CVarGetInteger(kModernCVar, 0) != 0;
+}
+
+extern "C" void FileChoose_DrawCoopMenu(FileChooseContext* ctx) {
+    if (Lobby() == nullptr)
+        return;
+    if (CoopLobby_ModernLayout())
+        DrawModern(ctx);
+    else
+        DrawClassic(ctx);
 }

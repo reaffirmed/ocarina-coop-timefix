@@ -2243,14 +2243,17 @@ void FileChoose_ConfigModeDraw(GameState* thisx) {
 
         gSPMatrix(POLY_OPA_DISP++, MATRIX_NEWMTX(this->state.gfxCtx), G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
 
-        gSPVertex(POLY_OPA_DISP++, &this->windowVtx[0], 32, 0);
-        gSPDisplayList(POLY_OPA_DISP++, gFileSelWindow1DL);
+        // the modern lobby is full screen, without the window
+        if (!CoopLobby_ModernLayout()) {
+            gSPVertex(POLY_OPA_DISP++, &this->windowVtx[0], 32, 0);
+            gSPDisplayList(POLY_OPA_DISP++, gFileSelWindow1DL);
 
-        gSPVertex(POLY_OPA_DISP++, &this->windowVtx[32], 32, 0);
-        gSPDisplayList(POLY_OPA_DISP++, gFileSelWindow2DL);
+            gSPVertex(POLY_OPA_DISP++, &this->windowVtx[32], 32, 0);
+            gSPDisplayList(POLY_OPA_DISP++, gFileSelWindow2DL);
 
-        gSPVertex(POLY_OPA_DISP++, &this->windowVtx[64], 16, 0);
-        gSPDisplayList(POLY_OPA_DISP++, gFileSelWindow3DL);
+            gSPVertex(POLY_OPA_DISP++, &this->windowVtx[64], 16, 0);
+            gSPDisplayList(POLY_OPA_DISP++, gFileSelWindow3DL);
+        }
 
         gDPPipeSync(POLY_OPA_DISP++);
 
