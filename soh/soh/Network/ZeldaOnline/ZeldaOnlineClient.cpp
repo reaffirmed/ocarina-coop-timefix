@@ -1793,7 +1793,6 @@ void ZeldaOnlineClient::OnIncomingPacket(ByteStream& packet) {
             }
         } break;
 
-
         case SERVER_PACKET_VOICE:
             VoiceChat::Instance().OnPacket(this, packet);
             break;
