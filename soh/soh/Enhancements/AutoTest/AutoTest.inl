@@ -133,6 +133,9 @@ struct AutoTestAccess {
     static bool WarpReady() {
         return C()->m_storyWarpReady;
     }
+    static int CsSkipped() {
+        return C()->m_storyCsSkipped;
+    }
     static int VoteTotal() {
         return C()->m_storyTotal;
     }
@@ -489,6 +492,7 @@ json Observe(const json& step) {
     o["warp_holds"] = AutoTestAccess::WarpHolds();
     o["warp_asked"] = AutoTestAccess::WarpAsked();
     o["warp_ready"] = AutoTestAccess::WarpReady();
+    o["cs_skipped"] = AutoTestAccess::CsSkipped();
     o["dlg_sent"] = AutoTestAccess::DlgSent();
     o["dlg_received"] = AutoTestAccess::DlgReceived();
     o["dlg_shown"] = AutoTestAccess::DlgShown();

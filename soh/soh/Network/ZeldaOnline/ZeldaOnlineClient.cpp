@@ -1931,6 +1931,8 @@ void ZeldaOnlineClient::DrawOverlay(GraphicsContext* gfxCtx) {
         DrawScreenText(gfxCtx, StoryHoldText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
     else if (m_storyWarpHold || m_storyWarpVoting)
         DrawScreenText(gfxCtx, StoryWarpText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
+    else if (m_storyCsHasPending && m_storyCsPromptFrames > 0)
+        DrawScreenText(gfxCtx, StoryCsPromptText().c_str(), 12, 170, { 255, 255, 255, 255 }, 0.45f);
 }
 
 void ZeldaOnlineClient::UpdateAppearance() {
