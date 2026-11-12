@@ -57,7 +57,7 @@ class CoopLobbyHelper {
 
     ~CoopLobbyHelper();
 
-    static std::string FindExecutable();
+    static std::string FindHelperExecutable();
     static bool Supported();
 
     bool Start(const std::vector<std::string>& args);

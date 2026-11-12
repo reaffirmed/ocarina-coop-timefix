@@ -296,7 +296,7 @@ std::string CoopLobbyWindow::SteamProblem() {
         checked = 1;
         if (!CoopLobbyHelper::Supported())
             problem = "Steam hosting is not available on this system.";
-        else if (CoopLobbyHelper::FindExecutable().empty())
+        else if (CoopLobbyHelper::FindHelperExecutable().empty())
             problem = "OOTSteamLink is missing from the game folder.";
     }
     return problem;

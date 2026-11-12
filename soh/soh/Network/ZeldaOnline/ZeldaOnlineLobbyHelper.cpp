@@ -10,8 +10,12 @@
 #include <system_error>
 
 #ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #else
 #include <fcntl.h>
@@ -38,7 +42,7 @@ bool CoopLobbyHelper::Supported() {
 }
 
 // The release puts OOTSteamLink next to the game (soh.exe, or soh.appimage on Linux).
-std::string CoopLobbyHelper::FindExecutable() {
+std::string CoopLobbyHelper::FindHelperExecutable() {
     if (!Supported())
         return "";
     std::vector<std::filesystem::path> dirs;
@@ -93,7 +97,7 @@ bool CoopLobbyHelper::Start(const std::vector<std::string>& args) {
     m_readOffset = 0;
     m_partialLine.clear();
 
-    const std::string exe = FindExecutable();
+    const std::string exe = FindHelperExecutable();
     if (exe.empty()) {
         state = State::Failed;
         error = Supported() ? std::string(kHelperName) + " was not found next to the game. It comes with the co-op "

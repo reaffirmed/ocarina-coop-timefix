@@ -808,7 +808,7 @@ static void Button(FileChooseContext* ctx, int x, int y, int w, bool selected, b
     CLOSE_DISPS(ctx->state.gfxCtx);
 }
 
-static void Arrow(FileChooseContext* ctx, float x, int y, float dir) {
+static void Arrow(FileChooseContext* ctx, int x, int y, float dir) {
     OPEN_DISPS(ctx->state.gfxCtx);
     Gfx_SetupDL_39Opa(ctx->state.gfxCtx);
     gDPSetCombineMode(POLY_OPA_DISP++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
@@ -816,7 +816,7 @@ static void Arrow(FileChooseContext* ctx, float x, int y, float dir) {
                         G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMIRROR | G_TX_WRAP, 4, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
     const auto& prompt = dir < 0 ? ctx->stickLeftPrompt : ctx->stickRightPrompt;
     FileChoose_DrawTextRec(ctx->state.gfxCtx, prompt.arrowColorR, prompt.arrowColorG, prompt.arrowColorB, sScreen.alpha,
-                           x, (f32)y, 0.42f, 0, 0, dir, 1.0f);
+                           (f32)x, (f32)y, 0.42f, 0, 0, dir, 1.0f);
     CLOSE_DISPS(ctx->state.gfxCtx);
 }
 
@@ -840,7 +840,12 @@ static std::string Fit(const std::string& text, float width, float scale) {
 }
 
 static void Icon(FileChooseContext* ctx, const char* tex, int x, int y, int size, bool have) {
-    Sprite sprite = { (void*)tex, 24, 24, G_IM_FMT_RGBA, G_IM_SIZ_32b, 0 };
+    Sprite sprite = {};
+    std::snprintf(sprite.tex, sizeof(sprite.tex), "%s", tex);
+    sprite.width = 24;
+    sprite.height = 24;
+    sprite.im_fmt = G_IM_FMT_RGBA;
+    sprite.im_siz = G_IM_SIZ_32b;
     OPEN_DISPS(ctx->state.gfxCtx);
     gDPPipeSync(POLY_OPA_DISP++);
     gDPSetRenderMode(POLY_OPA_DISP++, G_RM_XLU_SURF, G_RM_XLU_SURF2);
