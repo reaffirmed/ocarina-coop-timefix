@@ -66,6 +66,7 @@ enum RowId {
     ROW_EXTRA,
     ROW_ENEMY_HP,
     ROW_BOSS_HP,
+    ROW_ENEMY_DMG,
     ROW_START_HOSTING,
     ROW_DONE,
     ROW_CHOOSE_FILE,
@@ -311,6 +312,8 @@ std::vector<Row> BuildRows() {
             rows.push_back({ "Extra enemies", WeightText(s.extraEnemies, s.extraEnemyWeight), true, ROW_EXTRA });
             rows.push_back({ "Enemy health", WeightText(s.healthMultiplier, s.enemyHealthWeight), true, ROW_ENEMY_HP });
             rows.push_back({ "Boss health", WeightText(s.healthMultiplier, s.bossHealthWeight), true, ROW_BOSS_HP });
+            rows.push_back(
+                { "Enemy damage", WeightText(s.damageMultiplier, s.enemyDamageWeight), true, ROW_ENEMY_DMG });
             if (sScreen.settingsLive)
                 rows.push_back({ "Done", "", true, ROW_DONE });
             else
@@ -373,6 +376,7 @@ void ChangeOption(int id, int dir) {
             if (!s.privateDungeons) { // the difficulty settings need private dungeons
                 s.extraEnemies = false;
                 s.healthMultiplier = false;
+                s.damageMultiplier = false;
             }
             break;
         case ROW_EXTRA:
@@ -393,10 +397,13 @@ void ChangeOption(int id, int dir) {
             s.healthMultiplier = on || otherOn;
             break;
         }
+        case ROW_ENEMY_DMG:
+            StepWeight(s.damageMultiplier, s.enemyDamageWeight, dir);
+            break;
         default:
             return;
     }
-    if ((s.extraEnemies || s.healthMultiplier) && !s.privateDungeons)
+    if ((s.extraEnemies || s.healthMultiplier || s.damageMultiplier) && !s.privateDungeons)
         s.privateDungeons = true;
     lobby->OnStorySettingsChanged(p);
 }
