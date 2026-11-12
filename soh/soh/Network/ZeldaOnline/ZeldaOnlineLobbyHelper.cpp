@@ -103,8 +103,10 @@ bool CoopLobbyHelper::Start(const std::vector<std::string>& args) {
     }
 
     std::error_code ec;
+    // absolute: the helper changes to its own folder (steamlink/ or next to the game) before it opens the file
     std::filesystem::path dir = std::filesystem::path(Ship::Context::GetPathRelativeToAppDirectory("coop-lobby"));
     std::filesystem::create_directories(dir, ec);
+    dir = std::filesystem::absolute(dir, ec);
     m_statusPath = (dir / "status.txt").string();
     for (const char* suffix : { "", ".pick", ".stop" })
         std::filesystem::remove(m_statusPath + suffix, ec);

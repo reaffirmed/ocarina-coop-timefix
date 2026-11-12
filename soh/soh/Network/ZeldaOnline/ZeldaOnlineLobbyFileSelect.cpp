@@ -521,9 +521,16 @@ extern "C" void CoopLobby_FileSelectDrawPrompt(FileChooseContext* ctx) {
             b = 80;
             break;
     }
+    OPEN_DISPS(ctx->state.gfxCtx);
+    // the file buttons leave a combiner that ignores the primitive colour: set the one the text needs
+    gDPPipeSync(POLY_OPA_DISP++);
+    gDPSetCombineLERP(POLY_OPA_DISP++, 0, 0, 0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, PRIMITIVE, TEXEL0, 0,
+                      PRIMITIVE, 0);
+    CLOSE_DISPS(ctx->state.gfxCtx);
     const int16_t saved = sScreen.alpha;
     sScreen.alpha = std::min<int16_t>(ctx->windowAlpha, 255);
-    DrawText(ctx, text, (int)(292.0f - TextWidth(text, 0.7f)), 216, r, g, b, 0.7f);
+    // top right, above the window: the bottom has the A / B prompts
+    DrawText(ctx, text, (int)(292.0f - TextWidth(text, 0.7f)), 20, r, g, b, 0.7f);
     sScreen.alpha = saved;
 }
 

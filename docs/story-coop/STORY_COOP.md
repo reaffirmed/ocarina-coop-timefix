@@ -10,7 +10,7 @@ Open the party window, then tick **Story Co-op** in the party settings (party ad
 
 Press **R** on the file select screen: the window turns to the **Co-op** menu (the same turn as the Options menu),
 drawn with the game's window, font, cursor and menu sounds. Use the control stick (or the D-pad, with D-pad in text
-on), A to choose, left / right to change a setting, and B to go back. The bottom right of the file select shows
+on), A to choose, left / right to change a setting, and B to go back. The top right of the file select shows
 "R: Co-op" and what the lobby is doing. The same lobby is also a window in Network > Zelda Online > Co-op Lobby.
 It needs `OOTSteamLink` and `OOTServer` from the download next to the game, and Steam running (Windows and Linux).
 
