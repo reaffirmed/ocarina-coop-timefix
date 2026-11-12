@@ -124,6 +124,7 @@ class CoopLobbyWindow : public Ship::GuiWindow {
     bool m_wasInGame = false;
     bool m_seenTitle = false; // the title screen check already ran for this visit
     bool m_stopping = false;
+    double m_lastPoll = 0.0;
     int m_lastRecordedFile = -2;
     std::string m_message;
 

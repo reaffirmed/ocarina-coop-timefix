@@ -205,6 +205,7 @@ void CoopLobbyWindow::StartHosting(int index) {
     if (index < 0 || index >= (int)m_list.hosted.size())
         return;
     CoopPlaythrough& p = m_list.hosted[index];
+    m_message.clear();
     // the server keys the team save by the host's nickname and the team code: host under the same name as before
     if (p.hostNick.empty()) {
         p.hostNick = CVarGetString("gZeldaOnline.Nickname", "Player");
@@ -302,8 +303,12 @@ void CoopLobbyWindow::UpdateAutoShow() {
 }
 
 void CoopLobbyWindow::Draw() {
-    // the helper and the client are followed every frame, also while the window is closed
-    m_helper.Poll();
+    // the helper and the client are followed also while the window is closed; the status file a few times a second
+    const double now = ImGui::GetTime();
+    if (now - m_lastPoll >= 0.2) {
+        m_lastPoll = now;
+        m_helper.Poll();
+    }
     UpdateAutoShow();
     RecordSaveFile();
 
